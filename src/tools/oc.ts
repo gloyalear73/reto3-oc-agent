@@ -108,6 +108,7 @@ export const construir_payload = definir({
 
       return ok({
         payload: c.data.payload,
+        iva: c.data.iva,
         trazabilidad: `out/${caso}/trazabilidad.json`,
         evidencia,
         confirmaciones: validacion.confirmaciones,

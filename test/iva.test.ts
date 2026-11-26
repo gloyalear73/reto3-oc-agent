@@ -8,7 +8,7 @@ import { RAIZ } from "../src/config.ts";
 import { validar } from "../src/domain/controles.ts";
 import { cargarMaestros } from "../src/domain/maestros.ts";
 import { cargarPaquete } from "../src/domain/paquete.ts";
-import { construirPayload, redondear2 } from "../src/domain/payload.ts";
+import { construirPayload, desgloseIva, redondear2 } from "../src/domain/payload.ts";
 import type { Paquete } from "../src/types.ts";
 
 const m = (() => {
@@ -93,4 +93,23 @@ test("indicador sin IVA (C0): el precio neto es el mismo valor", () => {
 test("redondear2 no pierde centavos por coma flotante", () => {
   assert.equal(redondear2(1.005), 1.01);
   assert.equal(redondear2(79831.932773), 79831.93);
+});
+
+test("el desglose de IVA sale de la herramienta y cuadra con el precio neto", () => {
+  const d = desgloseIva(95000, 120, "C1", 0.19);
+  assert.deepEqual(d, {
+    indicador: "C1",
+    tasa: 0.19,
+    valor_unitario_con_iva: 95000,
+    precio_unitario_neto: 79831.93,
+    iva_unitario: 15168.07,
+    cantidad: 120,
+    base_total: 9579831.6,
+    iva_total: 1820168.4,
+    total_con_iva: 11400000,
+  });
+  const p = caso("sol-001");
+  const r = construirPayload(p, m, validar(p, m), "a".repeat(64));
+  assert.ok(r.ok);
+  assert.deepEqual(r.data.iva, d);
 });

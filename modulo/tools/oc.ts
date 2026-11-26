@@ -584,6 +584,22 @@ function validarCaso(directory, caso2, suministrado) {
 // src/domain/payload.ts
 import { z as z3 } from "zod/v4";
 var redondear2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
+function desgloseIva(valorUnitario, cantidad, codigo, tasa) {
+  const neto = redondear2(valorUnitario / (1 + tasa));
+  const totalConIva = redondear2(valorUnitario * cantidad);
+  const base = redondear2(neto * cantidad);
+  return {
+    indicador: codigo,
+    tasa,
+    valor_unitario_con_iva: valorUnitario,
+    precio_unitario_neto: neto,
+    iva_unitario: redondear2(valorUnitario - neto),
+    cantidad,
+    base_total: base,
+    iva_total: redondear2(totalConIva - base),
+    total_con_iva: totalConIva
+  };
+}
 var SOCIEDAD = "1000";
 function inferirUnidad(descripcion) {
   return /\bhoras?\b/i.test(descripcion) ? "H" : "UN";
@@ -657,7 +673,7 @@ ${z3.prettifyError(validado.error)}`);
     "posiciones[0].indicador_iva": s.indicador_iva ? { valor: iva, fuente: "solicitud" } : { valor: iva, fuente: "derivado", nota: "RC6: tomado de maestro.proveedores.indicador_iva_default" },
     excepciones: { valor: candidato.excepciones.map((e) => e.codigo), fuente: "derivado", nota: "confirmaciones de oc_validar" }
   };
-  return exito({ payload: validado.data, trazabilidad });
+  return exito({ payload: validado.data, trazabilidad, iva: desgloseIva(s.valor_unitario, s.cantidad, indicador.codigo, indicador.tasa) });
 }
 
 // src/domain/salida.ts
@@ -799,6 +815,7 @@ var construir_payload = definir({
       if (c.data.payload.excepciones.length > 0) marcarPendiente(ctx.sessionId, caso2, c.data.payload.excepciones);
       return ok({
         payload: c.data.payload,
+        iva: c.data.iva,
         trazabilidad: `out/${caso2}/trazabilidad.json`,
         evidencia,
         confirmaciones: validacion.confirmaciones,

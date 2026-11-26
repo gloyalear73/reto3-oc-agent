@@ -6,6 +6,36 @@ import { acortar } from "./util.ts";
 /** Redondeo a 2 decimales (precio unitario SAP). */
 export const redondear2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
 
+/** Desglose de IVA para mostrar a quien opera. No viaja a SAP: sale de los mismos valores que el payload. */
+export interface DesgloseIva {
+  indicador: string;
+  tasa: number;
+  valor_unitario_con_iva: number;
+  precio_unitario_neto: number;
+  iva_unitario: number;
+  cantidad: number;
+  base_total: number;
+  iva_total: number;
+  total_con_iva: number;
+}
+
+export function desgloseIva(valorUnitario: number, cantidad: number, codigo: string, tasa: number): DesgloseIva {
+  const neto = redondear2(valorUnitario / (1 + tasa));
+  const totalConIva = redondear2(valorUnitario * cantidad);
+  const base = redondear2(neto * cantidad);
+  return {
+    indicador: codigo,
+    tasa,
+    valor_unitario_con_iva: valorUnitario,
+    precio_unitario_neto: neto,
+    iva_unitario: redondear2(valorUnitario - neto),
+    cantidad,
+    base_total: base,
+    iva_total: redondear2(totalConIva - base),
+    total_con_iva: totalConIva,
+  };
+}
+
 const SOCIEDAD = "1000";
 
 /** Unidad SAP: solo "horas" se reconoce como H; el resto de compras son unidades. */
@@ -22,7 +52,7 @@ export function construirPayload(
   m: Maestros,
   v: Validacion,
   evidenciaSha256: string,
-): Resultado<{ payload: OrdenCompra; trazabilidad: Traza }> {
+): Resultado<{ payload: OrdenCompra; trazabilidad: Traza; iva: DesgloseIva }> {
   if (!v.apta) return falla("No se puede construir la OC: hay bloqueos sin resolver.");
   if (!p.aprobacion) return falla("No se puede construir la OC sin correo de aprobación.");
   const s = p.solicitud;
@@ -100,5 +130,5 @@ export function construirPayload(
     excepciones: { valor: candidato.excepciones.map((e) => e.codigo), fuente: "derivado", nota: "confirmaciones de oc_validar" },
   };
 
-  return exito({ payload: validado.data, trazabilidad });
+  return exito({ payload: validado.data, trazabilidad, iva: desgloseIva(s.valor_unitario, s.cantidad, indicador.codigo, indicador.tasa) });
 }

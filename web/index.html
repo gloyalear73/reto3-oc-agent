@@ -231,7 +231,7 @@ async function cargarControl() {
 
 function reiniciar() {
   sessionId = nuevoId(); $("chat").textContent = ""; $("f").classList.remove("espera");
-  msgBot("Hola, soy el agente de órdenes de compra. Dime qué solicitud procesar (p. ej. «Procesa la solicitud sol-001»). Valido los controles RC1–RC10, te muestro la OC como quedaría en SAP y **no creo nada con excepciones sin tu confirmación**.");
+  msgBot("Hola, soy el agente de órdenes de compra. Dime qué solicitud procesar (p. ej. «Procesa la solicitud sol-001»). Valido los controles RC1–RC12, te muestro la OC como quedaría en SAP y **no creo nada con excepciones sin tu confirmación**.");
 }
 
 $("f").addEventListener("submit", (e) => { e.preventDefault(); const t = $("msg").value; $("msg").value = ""; enviar(t); });
