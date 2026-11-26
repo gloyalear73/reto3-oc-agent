@@ -1,0 +1,22 @@
+{
+  "id": "sol-001",
+  "solicitante": "Laura Mejía",
+  "centroCosto": "CC200",
+  "subarea": "Compras",
+  "proveedorNit": "901.777.888-3",
+  "descripcion": "Papelería y útiles de oficina",
+  "items": [
+    {
+      "descripcion": "Resma carta",
+      "cantidad": 100,
+      "valorUnitario": 15000
+    },
+    {
+      "descripcion": "Carpetas",
+      "cantidad": 100,
+      "valorUnitario": 5000
+    }
+  ],
+  "moneda": "COP",
+  "fecha": "2026-11-12"
+}

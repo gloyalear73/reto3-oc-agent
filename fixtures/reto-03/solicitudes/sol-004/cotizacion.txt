@@ -1,0 +1,11 @@
+COTIZACIÓN No. SA-1040
+Proveedor: Suministros Andinos S.A.S.
+NIT: 900.123.456-1
+Fecha: 2026-11-13
+Condición de pago: Pago a 30 días
+
+- Pendones: 20 x 50.000
+
+Subtotal: 1000000
+IVA (19%): 190000
+Total: 1190000

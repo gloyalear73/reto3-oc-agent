@@ -1,0 +1,13 @@
+{
+  "id": "mail-sol-005",
+  "de": "natalia.vega@periferia.example",
+  "para": "compras@periferia.example",
+  "asunto": "OC para factura recibida",
+  "fecha": "2026-11-18",
+  "cuerpo": "Ya recibimos el servicio y la factura, necesitamos la OC.",
+  "adjuntos": [
+    "cotizacion.txt",
+    "aprobacion.json",
+    "factura.txt"
+  ]
+}

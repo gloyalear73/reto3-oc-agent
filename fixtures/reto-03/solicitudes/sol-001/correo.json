@@ -1,0 +1,12 @@
+{
+  "id": "mail-sol-001",
+  "de": "laura.mejia@periferia.example",
+  "para": "compras@periferia.example",
+  "asunto": "Solicitud de compra - papelería oficina",
+  "fecha": "2026-11-12",
+  "cuerpo": "Adjunto cotización y aprobación para compra de papelería.",
+  "adjuntos": [
+    "cotizacion.txt",
+    "aprobacion.json"
+  ]
+}

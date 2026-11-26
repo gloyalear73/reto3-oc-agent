@@ -1,0 +1,17 @@
+{
+  "id": "sol-002",
+  "solicitante": "Diego Pardo",
+  "centroCosto": "CC100",
+  "subarea": "Infraestructura",
+  "proveedorNit": "800.555.222-7",
+  "descripcion": "Soporte técnico servidores",
+  "items": [
+    {
+      "descripcion": "Soporte mensual",
+      "cantidad": 3,
+      "valorUnitario": 1000000
+    }
+  ],
+  "moneda": "COP",
+  "fecha": "2026-11-13"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "mail-sol-006",
+  "de": "andres.cruz@periferia.example",
+  "para": "compras@periferia.example",
+  "asunto": "Capacitación equipo comercial",
+  "fecha": "2026-11-19",
+  "cuerpo": "Cotización de capacitación para ventas.",
+  "adjuntos": [
+    "cotizacion.txt",
+    "aprobacion.json"
+  ]
+}

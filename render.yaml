@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: agente-ordenes-compra
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/estado
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false # se pega manualmente en el panel de Render
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5

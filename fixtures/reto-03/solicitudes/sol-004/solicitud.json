@@ -1,0 +1,17 @@
+{
+  "id": "sol-004",
+  "solicitante": "Camilo Ortiz",
+  "centroCosto": "CC300",
+  "subarea": "Mercadeo",
+  "proveedorNit": "900.123.456-1",
+  "descripcion": "Material POP",
+  "items": [
+    {
+      "descripcion": "Pendones",
+      "cantidad": 20,
+      "valorUnitario": 50000
+    }
+  ],
+  "moneda": "COP",
+  "fecha": "2026-11-15"
+}

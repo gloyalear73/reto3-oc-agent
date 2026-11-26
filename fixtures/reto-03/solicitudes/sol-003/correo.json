@@ -1,0 +1,12 @@
+{
+  "id": "mail-sol-003",
+  "de": "sofia.rojas@periferia.example",
+  "para": "compras@periferia.example",
+  "asunto": "Compra de equipos de cómputo",
+  "fecha": "2026-11-14",
+  "cuerpo": "Compra de 5 portátiles para el equipo de desarrollo.",
+  "adjuntos": [
+    "cotizacion.txt",
+    "aprobacion.json"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "mail-sol-004",
+  "de": "camilo.ortiz@periferia.example",
+  "para": "compras@periferia.example",
+  "asunto": "Material publicitario",
+  "fecha": "2026-11-15",
+  "cuerpo": "Aprobado por Pedro, adjunto evidencia.",
+  "adjuntos": [
+    "cotizacion.txt",
+    "aprobacion.json"
+  ]
+}

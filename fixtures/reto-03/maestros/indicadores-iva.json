@@ -1,0 +1,17 @@
+[
+  {
+    "codigo": "I0",
+    "tasa": 0,
+    "descripcion": "Exento / excluido"
+  },
+  {
+    "codigo": "I1",
+    "tasa": 19,
+    "descripcion": "IVA general 19%"
+  },
+  {
+    "codigo": "I2",
+    "tasa": 5,
+    "descripcion": "IVA reducido 5%"
+  }
+]

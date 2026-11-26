@@ -1,0 +1,44 @@
+[
+  {
+    "codigo": "CC100",
+    "nombre": "Tecnología",
+    "subareas": [
+      "Infraestructura",
+      "Desarrollo"
+    ],
+    "lider": {
+      "id": "L-ana",
+      "nombre": "Ana Gómez",
+      "email": "ana.gomez@periferia.example",
+      "topeAprobacion": 5000000
+    }
+  },
+  {
+    "codigo": "CC200",
+    "nombre": "Administrativo",
+    "subareas": [
+      "Compras",
+      "Servicios Generales"
+    ],
+    "lider": {
+      "id": "L-carlos",
+      "nombre": "Carlos Ruiz",
+      "email": "carlos.ruiz@periferia.example",
+      "topeAprobacion": 20000000
+    }
+  },
+  {
+    "codigo": "CC300",
+    "nombre": "Comercial",
+    "subareas": [
+      "Ventas",
+      "Mercadeo"
+    ],
+    "lider": {
+      "id": "L-marta",
+      "nombre": "Marta Díaz",
+      "email": "marta.diaz@periferia.example",
+      "topeAprobacion": 8000000
+    }
+  }
+]

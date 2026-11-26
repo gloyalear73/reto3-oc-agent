@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente de Órdenes de Compra</title>
+<style>
+  :root {
+    --bg:#f6f7f9; --panel:#fff; --ink:#1c2430; --muted:#64707f; --line:#e1e5ea;
+    --brand:#1b6b3a; --brand-ink:#fff;
+    --ok:#1b7f3b; --warn:#b26a00; --bad:#b3261e;
+    --ok-bg:#e8f5ec; --warn-bg:#fff4dc; --bad-bg:#fdeceb; --tool-bg:#eef2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161c; --panel:#1b212a; --ink:#e8ecf1; --muted:#9aa5b3; --line:#2b3440;
+      --ok-bg:#16301f; --warn-bg:#3a2b0c; --bad-bg:#3b1816; --tool-bg:#222a35; --ok:#5fcf84; --warn:#f0b04a; --bad:#ff8a80; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  .badge { font-size:12px; padding:3px 10px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+  .badge.on { color:var(--ok); border-color:var(--ok); }
+  main { display:grid; grid-template-columns: 340px 1fr; gap:16px; padding:16px; max-width:1280px; margin:0 auto; height:calc(100vh - 56px); }
+  @media (max-width: 860px) { main { grid-template-columns:1fr; height:auto; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; display:flex; flex-direction:column; min-height:0; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0; padding:12px 14px; border-bottom:1px solid var(--line); }
+  .side { overflow:auto; }
+  .pad { padding:14px; }
+  select, textarea, input { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+  button { cursor:pointer; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font:inherit; }
+  button.primary { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  button.danger { color:var(--bad); border-color:var(--bad); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:8px; margin-top:8px; }
+  .decision { display:inline-block; font-weight:700; padding:3px 12px; border-radius:99px; font-size:13px; }
+  .CREAR { background:var(--ok-bg); color:var(--ok); } .ESCALAR { background:var(--warn-bg); color:var(--warn); } .RECHAZAR { background:var(--bad-bg); color:var(--bad); }
+  table.ctl { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+  table.ctl td { padding:5px 4px; border-top:1px solid var(--line); vertical-align:top; }
+  .dot { font-weight:700; } .dot.ok { color:var(--ok); } .dot.fail { color:var(--bad); }
+  .muted { color:var(--muted); font-size:13px; }
+  #chat { flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:85%; padding:9px 13px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; }
+  .msg.user { align-self:flex-end; background:var(--brand); color:var(--brand-ink); }
+  .msg.bot { align-self:flex-start; background:var(--tool-bg); }
+  .msg.err { align-self:flex-start; background:var(--bad-bg); color:var(--bad); }
+  details.tool { align-self:flex-start; max-width:92%; background:var(--tool-bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:13px; }
+  details.tool summary { cursor:pointer; color:var(--muted); }
+  details.tool pre { margin:6px 0 0; overflow:auto; max-height:240px; font-size:12px; }
+  .confirm { align-self:stretch; border:2px solid var(--warn); background:var(--warn-bg); border-radius:10px; padding:12px 14px; }
+  .confirm.done { border-color:var(--ok); background:var(--ok-bg); }
+  .confirm.rej { border-color:var(--bad); background:var(--bad-bg); }
+  .confirm h3 { margin:0 0 6px; font-size:14px; }
+  .confirm dl { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:6px 0; font-size:13px; }
+  .confirm dt { color:var(--muted); }
+  form#f { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+  form#f input { flex:1; }
+  .sug { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 8px; }
+  .sug button { font-size:12px; padding:4px 10px; }
+  .oc { font-size:13px; padding:6px 0; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧾 Agente de Órdenes de Compra · SAP simulado</h1>
+  <span id="llm" class="badge">…</span>
+</header>
+<main>
+  <section class="panel side">
+    <h2>Evaluar sin LLM</h2>
+    <div class="pad">
+      <select id="caso"></select>
+      <div class="row"><button class="primary" id="evalBtn">Evaluar controles</button></div>
+      <div id="evalOut"></div>
+    </div>
+    <h2>OC creadas en SAP</h2>
+    <div class="pad" id="ocs"><span class="muted">Ninguna todavía.</span></div>
+  </section>
+
+  <section class="panel">
+    <h2>Chat con el agente</h2>
+    <div id="chat"></div>
+    <div class="sug" id="sug"></div>
+    <form id="f"><input id="msg" placeholder="Ej.: Revisa la solicitud sol-003" autocomplete="off"><button class="primary" id="send">Enviar</button></form>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sesionId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
+const COP = (n) => "$" + Math.round(n).toLocaleString("es-CO");
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+const post = (url, body) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sesionId, ...body }) }).then(async r => ({ status: r.status, data: await r.json() }));
+
+function addMsg(kind, text) { const m = el("div", "msg " + kind, text); $("chat").append(m); scroll(); }
+function scroll() { $("chat").scrollTop = $("chat").scrollHeight; }
+
+function addTool(ev) {
+  const d = el("details", "tool");
+  d.append(el("summary", "", "🔧 " + ev.nombre + (ev.requiereConfirmacion ? "  ⚠ requiere confirmación humana" : "")));
+  d.append(el("pre", "", JSON.stringify({ entrada: ev.entrada, resultado: ev.resultado }, null, 2)));
+  $("chat").append(d); scroll();
+}
+
+function addConfirm(ev) {
+  const box = el("div", "confirm");
+  box.append(el("h3", "", "⚠ Confirmación humana requerida — " + ev.decision));
+  box.append(el("div", "", ev.resumen));
+  const o = ev.datosOC, dl = el("dl");
+  [["Solicitud", o.solicitudId], ["Proveedor", o.proveedorNombre], ["Centro de costo", o.centroCosto + " / " + o.subarea],
+   ["Total", COP(o.total)], ["Condición de pago", o.condicionPago], ["Indicador IVA", o.indicadorIva],
+   ["Aprobador", o.aprobador], ["Retroactiva", o.retroactiva ? "SÍ" : "No"]]
+    .forEach(([k, v]) => { const dt = el("dt", "", k), dd = el("dd", "", String(v)); dd.style.margin = 0; dl.append(dt, dd); });
+  box.append(dl);
+  const just = el("textarea"); just.rows = 2;
+  just.placeholder = ev.decision === "ESCALAR" ? "Justificación (obligatoria, mín. 10 caracteres)" : "Comentario (opcional)";
+  box.append(just);
+  const row = el("div", "row"), ok = el("button", "primary", "Aprobar y crear OC"), no = el("button", "danger", "Rechazar");
+  row.append(ok, no); box.append(row);
+  const resolve = async (aprobar) => {
+    ok.disabled = no.disabled = true;
+    const { data } = await post("/api/confirmar", { token: ev.token, aprobar, persona: "usuario-web", justificacion: just.value });
+    if (data.ok) { box.classList.add(aprobar ? "done" : "rej"); row.remove(); just.remove(); box.append(el("div", "", (aprobar ? "✔ " : "✘ ") + data.mensaje)); refreshOcs(); }
+    else { ok.disabled = no.disabled = false; box.append(el("div", "muted", "⚠ " + (data.mensaje || data.error))); }
+  };
+  ok.onclick = () => resolve(true); no.onclick = () => resolve(false);
+  $("chat").append(box); scroll();
+}
+
+function render(events) {
+  for (const ev of events) {
+    if (ev.tipo === "texto") addMsg("bot", ev.texto);
+    else if (ev.tipo === "herramienta") addTool(ev);
+    else if (ev.tipo === "confirmacion") addConfirm(ev);
+    else if (ev.tipo === "error") addMsg("err", ev.mensaje);
+  }
+}
+
+async function enviar(texto) {
+  addMsg("user", texto);
+  $("send").disabled = true;
+  const { data } = await post("/api/chat", { mensaje: texto });
+  $("send").disabled = false;
+  render(data.eventos || [{ tipo: "error", mensaje: data.error || "Error" }]);
+}
+
+$("f").addEventListener("submit", (e) => { e.preventDefault(); const t = $("msg").value.trim(); if (!t) return; $("msg").value = ""; enviar(t); });
+
+function renderEval(r) {
+  const out = $("evalOut"); out.textContent = "";
+  const ev = r.evaluacion;
+  if (ev.error) { out.append(el("div", "muted", ev.error)); return; }
+  const head = el("div"); head.style.marginTop = "12px";
+  head.append(el("span", "decision " + ev.decision, ev.decision), el("div", "muted", ev.resumen));
+  out.append(head);
+  const t = el("table", "ctl");
+  for (const h of ev.hallazgos) {
+    const tr = el("tr"), a = el("td"), b = el("td");
+    a.append(el("span", "dot " + (h.ok ? "ok" : "fail"), h.ok ? "✓" : "✗"));
+    b.append(el("strong", "", h.control + " " + h.nombre), el("div", "muted", h.detalle));
+    tr.append(a, b); t.append(tr);
+  }
+  out.append(t);
+  if (r.propuesta && r.propuesta.estado === "REQUIERE_CONFIRMACION") {
+    const p = r.propuesta;
+    const btn = el("button", "primary", "Abrir confirmación humana en el chat");
+    btn.style.marginTop = "10px";
+    btn.onclick = () => { addConfirm({ token: p.token, decision: p.decision, resumen: p.resumen, datosOC: p.datosOC }); btn.disabled = true; };
+    out.append(btn);
+  }
+}
+
+$("evalBtn").onclick = async () => {
+  const { data } = await post("/api/evaluar", { solicitudId: $("caso").value });
+  renderEval(data);
+};
+
+async function refreshOcs() {
+  const r = await fetch("/api/ocs?sesionId=" + encodeURIComponent(sesionId)).then(r => r.json());
+  const box = $("ocs"); box.textContent = "";
+  if (!r.length) { box.append(el("span", "muted", "Ninguna todavía.")); return; }
+  for (const o of r) box.append(el("div", "oc", `OC ${o.numero} · ${o.solicitudId} · ${COP(o.total)}${o.retroactiva ? " · RETROACTIVA" : ""}`));
+}
+
+(async function init() {
+  const st = await fetch("/api/estado").then(r => r.json());
+  const b = $("llm"); b.textContent = st.llm ? "LLM activo" : "Sin API key · modo determinista"; b.classList.toggle("on", st.llm);
+  for (const c of st.casos) $("caso").append(new Option(c, c));
+  for (const c of st.casos.slice(0, 6)) {
+    const s = el("button", "", "Revisa " + c); s.type = "button"; s.onclick = () => enviar("Revisa la solicitud " + c); $("sug").append(s);
+  }
+  addMsg("bot", "Hola, soy el agente de órdenes de compra. Dime qué solicitud revisar (p. ej. «Revisa sol-001») o usa los atajos de abajo. Yo valido los controles; la creación en SAP siempre requiere tu confirmación.");
+})();
+</script>
+</body>
+</html>

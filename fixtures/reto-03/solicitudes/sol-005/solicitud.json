@@ -1,0 +1,17 @@
+{
+  "id": "sol-005",
+  "solicitante": "Natalia Vega",
+  "centroCosto": "CC200",
+  "subarea": "Servicios Generales",
+  "proveedorNit": "900.123.456-1",
+  "descripcion": "Mantenimiento de oficinas",
+  "items": [
+    {
+      "descripcion": "Mantenimiento general",
+      "cantidad": 1,
+      "valorUnitario": 6000000
+    }
+  ],
+  "moneda": "COP",
+  "fecha": "2026-11-18"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "sol-003",
+  "solicitante": "Sofía Rojas",
+  "centroCosto": "CC100",
+  "subarea": "Desarrollo",
+  "proveedorNit": "900.123.456-1",
+  "descripcion": "Portátiles equipo de desarrollo",
+  "items": [
+    {
+      "descripcion": "Portátil 16GB",
+      "cantidad": 5,
+      "valorUnitario": 2000000
+    }
+  ],
+  "moneda": "COP",
+  "fecha": "2026-11-14"
+}

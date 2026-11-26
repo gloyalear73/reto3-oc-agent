@@ -1,0 +1,12 @@
+{
+  "id": "mail-sol-002",
+  "de": "diego.pardo@periferia.example",
+  "para": "compras@periferia.example",
+  "asunto": "Compra de licencias y soporte",
+  "fecha": "2026-11-13",
+  "cuerpo": "Necesitamos soporte técnico con este proveedor.",
+  "adjuntos": [
+    "cotizacion.txt",
+    "aprobacion.json"
+  ]
+}

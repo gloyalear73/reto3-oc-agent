@@ -1,0 +1,17 @@
+{
+  "id": "sol-006",
+  "solicitante": "Andrés Cruz",
+  "centroCosto": "CC300",
+  "subarea": "Ventas",
+  "proveedorNit": "890.111.333-5",
+  "descripcion": "Capacitación en ventas consultivas",
+  "items": [
+    {
+      "descripcion": "Taller 2 días",
+      "cantidad": 1,
+      "valorUnitario": 3500000
+    }
+  ],
+  "moneda": "COP",
+  "fecha": "2026-11-19"
+}

@@ -1,0 +1,11 @@
+COTIZACIÓN No. SA-1032
+Proveedor: Suministros Andinos S.A.S.
+NIT: 900.123.456-1
+Fecha: 2026-11-12
+Condición de pago: Pago a 30 días
+
+- Portátil 16GB: 5 x 2.000.000
+
+Subtotal: 10000000
+IVA (19%): 1900000
+Total: 11900000

@@ -1,0 +1,46 @@
+[
+  {
+    "id": "P001",
+    "nombre": "Suministros Andinos S.A.S.",
+    "nit": "900.123.456-1",
+    "estado": "activo",
+    "defaults": {
+      "indicadorIva": "I1",
+      "condicionPago": "C30",
+      "moneda": "COP"
+    }
+  },
+  {
+    "id": "P002",
+    "nombre": "Tecnoservicios del Norte Ltda",
+    "nit": "800.555.222-7",
+    "estado": "bloqueado",
+    "defaults": {
+      "indicadorIva": "I1",
+      "condicionPago": "C30",
+      "moneda": "COP"
+    }
+  },
+  {
+    "id": "P003",
+    "nombre": "Papelería Central S.A.",
+    "nit": "901.777.888-3",
+    "estado": "activo",
+    "defaults": {
+      "indicadorIva": "I1",
+      "condicionPago": "C45",
+      "moneda": "COP"
+    }
+  },
+  {
+    "id": "P004",
+    "nombre": "Capacitaciones Educativas S.A.S.",
+    "nit": "890.111.333-5",
+    "estado": "activo",
+    "defaults": {
+      "indicadorIva": "I0",
+      "condicionPago": "C15",
+      "moneda": "COP"
+    }
+  }
+]
