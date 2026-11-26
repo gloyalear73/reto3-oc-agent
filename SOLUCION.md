@@ -195,7 +195,7 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 
 | Ambigüedad | Tratamiento | Para cerrarla hace falta |
 |---|---|---|
-| La rúbrica se cita en una «sección 10» que no existe con ese contenido. | Se cubrieron todas las HU, los CA y los casos de los fixtures. | Confirmar la rúbrica con quien evalúa. |
+| El PRD (sección 0) remite a una rúbrica en la sección 10 para los 70/100 puntos de aprobación, pero esa sección trata de riesgos, supuestos y preguntas abiertas; no se recibió la rúbrica de puntaje. | Se cubrieron todas las HU, los criterios de aceptación, los requisitos no funcionales, las 12 secciones de este documento y el bonus. | Pedir la rúbrica a quien evalúa y contrastarla con la cobertura (sección 10). |
 | sol-003 incumple RC2 y RC3 a la vez. | Se reporta solo RC2 (RC3 depende de un aprobador válido, supuesto 4). | Decidir si deben listarse ambos. |
 | RC8 (retroactiva): ¿la factura se compara con la fecha de la solicitud o con la de la OC? | Con `fecha_solicitud`. | Definición de negocio. |
 | Qué es una «confirmación»: ¿cualquier mensaje posterior o uno afirmativo? | Solo se verifica que exista un mensaje posterior de la persona; no se lee su contenido (decisión 3). El prompt obliga a preguntar y a no confirmar por su cuenta. | Un clasificador de intención o botones tipados. |
