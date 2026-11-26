@@ -5,11 +5,11 @@ description: Conocimiento del proceso de órdenes de compra de Periferia: reglas
 
 ## Proceso de creación de órdenes de compra (OC)
 
-Cada compra llega por correo con tres piezas: la solicitud (Excel), la cotización del proveedor y el correo de aprobación del líder. Hoy la analista digita en SAP proveedor, descripción, centro de costo, subárea, valor, indicador de IVA, aprobador y condiciones de pago, y adjunta el correo de aprobación como evidencia. El agente automatiza la lectura, la validación y la preparación de la OC; **las excepciones no se resuelven a la fuerza: se clasifican y se devuelven a la analista con una recomendación**.
+Cada compra llega por correo con tres piezas: la solicitud (Excel), la cotización del proveedor y el correo de aprobación del líder. Hoy quien opera como analista digita en SAP proveedor, descripción, centro de costo, subárea, valor, indicador de IVA, aprobador y condiciones de pago, y adjunta el correo de aprobación como evidencia. El agente automatiza la lectura, la validación y la preparación de la OC; **las excepciones no se resuelven a la fuerza: se clasifican y se devuelven a quien opera con una recomendación**.
 
 ## Reglas de control
 
-Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si la analista confirma. Un **derivado** es un valor que se completa desde los maestros y debe informarse.
+Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si quien opera el chat lo confirma. Un **derivado** es un valor que se completa desde los maestros y debe informarse.
 
 | Regla | Qué verifica | Tipo |
 |---|---|---|
@@ -26,10 +26,10 @@ Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si la a
 
 ## Qué significa y qué recomendar
 
-- **RC1 (proveedor inexistente o inactivo):** no se puede comprar a un proveedor que no está dado de alta o activo en SAP. Recomendar el alta o la reactivación y reenviar la solicitud. No es un dato que la analista pueda corregir en el chat.
+- **RC1 (proveedor inexistente o inactivo):** no se puede comprar a un proveedor que no está dado de alta o activo en SAP. Recomendar el alta o la reactivación y reenviar la solicitud. No es un dato que quien opera pueda corregir en el chat.
 - **RC2 (aprobador sin autoridad):** el correo de aprobación no sirve si quien aprueba no es aprobador de ese centro de costo, aunque sea un líder. Recomendar la aprobación de quien corresponde. Si el valor supera el tope de todos los aprobadores del centro, hace falta un nivel superior; no se sugiere partir la compra.
 - **RC3 (tope excedido):** el aprobador existe pero no tiene autoridad para ese monto; se necesita un aprobador con tope suficiente.
-- **RC5 (cotización ≠ solicitud):** puede ser un error de digitación de la solicitud o un precio que cambió. La analista decide con ambos valores a la vista; el agente nunca ajusta una cifra para que cuadre.
+- **RC5 (cotización ≠ solicitud):** puede ser un error de digitación de la solicitud o un precio que cambió. Quien opera decide con ambos valores a la vista; el agente nunca ajusta una cifra para que cuadre.
 - **RC6/RC7 (datos derivados):** el agente solo completa desde los maestros del proveedor y lo declara. El indicador de IVA se confirma porque afecta el costo.
 - **RC8 (compra retroactiva):** la OC se pide después de que llegó la factura, es decir, la cotización y el control previo se saltaron. La OC se puede crear con confirmación, pero queda marcada `retroactiva = true` en `out/control.csv` para que la dirección la mida. Que se permita o se rechace es una política de la compañía; el agente la mide, no la decide.
 

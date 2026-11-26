@@ -2,9 +2,9 @@
 
 ## 1. Problema en una frase
 
-La analista administrativa digita a mano en SAP, por cada factura, los datos de una compra que llegó por correo, y verifica «de memoria» que el aprobador pueda aprobar ese monto; eso cuesta tiempo, produce errores que se corrigen en cierre contable y deja a la dirección sin saber cuántas órdenes se crean *después* de la factura.
+Quien ejerce como analista administrativo digita a mano en SAP, por cada factura, los datos de una compra que llegó por correo, y verifica «de memoria» que el aprobador pueda aprobar ese monto; eso cuesta tiempo, produce errores que se corrigen en cierre contable y deja a la dirección sin saber cuántas órdenes se crean *después* de la factura.
 
-**A quién le duele:** a la analista (tiempo y riesgo de error), a Contabilidad/Auditoría (control no sistemático y evidencia dispersa) y a la dirección (no mide el desvío de proceso).
+**A quién le duele:** a quien opera el proceso como analista (tiempo y riesgo de error), a Contabilidad/Auditoría (control no sistemático y evidencia dispersa) y a la dirección (no mide el desvío de proceso).
 
 ## 2. Arquitectura
 
@@ -134,21 +134,21 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | `referencia.solicitud_id` | campo de referencia externa de cabecera (para idempotencia) |
 | evidencia (`aprobacion.pdf`) | adjunto vía `API_CV_ATTACHMENT_SRV` |
 
-**Brechas que el payload simplificado no cubre y SAP exigirá:** grupo de compras, centro/almacén, grupo de artículos y la *subárea* (hoy sin campo SAP definido; probablemente una orden interna o un campo de usuario). Deben definirse con la analista antes de producción.
+**Brechas que el payload simplificado no cubre y SAP exigirá:** grupo de compras, centro/almacén, grupo de artículos y la *subárea* (hoy sin campo SAP definido; probablemente una orden interna o un campo de usuario). Deben definirse con el área de Compras antes de producción.
 
 **Autenticación.** Usuario de comunicación de SAP con *communication arrangement* de mínimo privilegio (solo OC), o OAuth 2.0 con SAML bearer; la credencial vive en un gestor de secretos y en la configuración del *adapter*, **nunca** en el agente, el prompt ni el front. El agente solo conoce `SapAdapter`. Las llamadas de escritura requieren obtener un token CSRF previo.
 
 **Idempotencia y error parcial.**
 - Antes de crear: consulta por la referencia externa (`solicitud_id`); si existe, devuelve esa OC (como hoy hace `buscarOrdenPorReferencia`).
 - La creación de cabecera + posiciones + imputación va en **una sola petición** (deep insert) o un `$batch` con *changeset*, de modo que falle o se aplique completa.
-- Timeout o 5xx con resultado incierto: **no se reintenta a ciegas**; se consulta por referencia externa y solo se reintenta si no existe. Error funcional de SAP (4xx con mensaje de negocio) no se reintenta: se muestra a la analista.
+- Timeout o 5xx con resultado incierto: **no se reintenta a ciegas**; se consulta por referencia externa y solo se reintenta si no existe. Error funcional de SAP (4xx con mensaje de negocio) no se reintenta: se muestra a quien opera.
 - Si queda una OC a medias (por ejemplo sin adjunto), el estado se registra en `control.csv` y se reintenta *solo* el paso pendiente.
 
-**Plan B (conexión no viable).** El agente igual elimina la digitación: genera, por caso, un paquete «listo para pegar»: tabla de la OC campo a campo, la evidencia en PDF con su hash y un archivo de carga masiva (CSV/Excel con las columnas del *template* de carga de OC del cliente) para cargarlo en bloque. La analista revisa y sube; el control, la trazabilidad y `control.csv` siguen funcionando igual.
+**Plan B (conexión no viable).** El agente igual elimina la digitación: genera, por caso, un paquete «listo para pegar»: tabla de la OC campo a campo, la evidencia en PDF con su hash y un archivo de carga masiva (CSV/Excel con las columnas del *template* de carga de OC del cliente) para cargarlo en bloque. Quien opera revisa y sube; el control, la trazabilidad y `control.csv` siguen funcionando igual.
 
 ## 7. Lectura del proceso: las OC retroactivas
 
-**Qué le diría a la dirección.** Una OC retroactiva no es un error de digitación: es un proceso que corre *al revés*. En la muestra, sol-005 lo muestra con claridad: la factura FC-88231 es del 10 de agosto, la solicitud del 27 y la aprobación del 28; la propia aprobadora escribe «ya llegó la factura, por favor crear la OC para poder radicarla». La aprobación dejó de ser un control preventivo y pasó a ser un trámite de legalización: se aprobó un gasto ya ejecutado, sin que nadie pudiera negarse. Eso rompe tres cosas a la vez: el control de topes (RC3), la comparación de precio (la cotización es de agosto 5 y la compra ya estaba hecha) y la planeación contable (gasto sin compromiso previo). Con seis casos no se puede inferir una tasa (uno de seis no es una cifra), pero sí que **hoy nadie la mide**; el agente empieza a hacerlo en `out/control.csv` (`retroactiva`) sin bloquear a la analista.
+**Qué le diría a la dirección.** Una OC retroactiva no es un error de digitación: es un proceso que corre *al revés*. En la muestra, sol-005 lo muestra con claridad: la factura FC-88231 es del 10 de agosto, la solicitud del 27 y la aprobación del 28; la propia aprobadora escribe «ya llegó la factura, por favor crear la OC para poder radicarla». La aprobación dejó de ser un control preventivo y pasó a ser un trámite de legalización: se aprobó un gasto ya ejecutado, sin que nadie pudiera negarse. Eso rompe tres cosas a la vez: el control de topes (RC3), la comparación de precio (la cotización es de agosto 5 y la compra ya estaba hecha) y la planeación contable (gasto sin compromiso previo). Con seis casos no se puede inferir una tasa (uno de seis no es una cifra), pero sí que **hoy nadie la mide**; el agente empieza a hacerlo en `out/control.csv` (`retroactiva`) sin bloquear a quien opera.
 
 **Qué cambio de proceso propondría.**
 1. **Medir primero**: porcentaje de OC retroactivas por centro de costo, líder, proveedor y días de desfase; reporte mensual a los líderes. Sin línea base no se demuestra mejora.
