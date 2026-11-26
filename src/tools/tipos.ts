@@ -1,9 +1,12 @@
 import type { z } from "zod/v4";
+import type { SapAdapter } from "../sap/adapter.ts";
 
 export interface ContextoHerramienta {
   /** Raíz del proyecto: las herramientas resuelven rutas desde aquí. */
   directory: string;
   sessionId: string;
+  /** Adaptador SAP a usar. Si se omite, las herramientas usan el SAP simulado sobre `out/sap/`. */
+  sap?: SapAdapter;
 }
 
 /** Contrato PRD 6.2: description + args (zod) + execute que devuelve un string JSON y nunca lanza. */

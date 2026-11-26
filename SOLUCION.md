@@ -114,6 +114,8 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 
 **Elección: OData `API_PURCHASEORDER_PROCESS_SRV`** (S/4HANA), con **Plan B** de carga por archivo.
 
+*Cómo se enchufa.* Las herramientas reciben el adaptador por el contexto (`ctx.sap`, de tipo `SapAdapter`); si no llega ninguno usan el SAP simulado sobre `out/sap/`. Pasar a SAP real es escribir otra clase con los mismos tres métodos y entregarla al construir el contexto, sin tocar herramientas, controles ni prompt. `test/sap.test.ts` lo demuestra con un SAP en memoria. Extensión sobre el PRD: `buscarOrdenPorReferencia` devuelve también `fecha`, para informar la fecha original al reintentar; SAP real la entrega en la cabecera del documento.
+
 *Por qué, dada una viabilidad no confirmada.* OData es la API oficial y pública de S/4HANA para órdenes de compra, funciona sobre HTTPS (apta para un agente en la nube sin RFC abierto) y tiene semántica clara de errores. `BAPI_PO_CREATE1` por RFC solo si el cliente está en ECC. SAP Integration Suite es una buena capa intermedia si TI exige un gateway, pero añade un componente que el reto no necesita probar.
 
 **Mapeo del payload de 7.4** (nombres a validar contra el sistema del cliente):
@@ -180,7 +182,8 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 7. **Los maestros están completos y son verdad** (PRD 10). En producción se consultan en SAP en tiempo real; `consultarProveedor` ya se invoca como segunda verificación antes de crear.
 8. **«Aprobado» se detecta por texto** (con exclusión de «no aprobado»). No se valida firma digital; el correo es evidencia suficiente (PRD 10).
 9. **Una sola sociedad/organización de compras (`1000`)**, constante de configuración.
-10. **Sesiones y confirmaciones en memoria:** un reinicio del servidor las pierde. `out/` se limpia al arrancar (PRD 8), por lo que las OC de la demo no sobreviven a un reinicio.
+10. **`buscarOrdenPorReferencia` devuelve además `fecha`** (obligatoria en nuestro contrato, no está en el PRD): un adaptador que solo devuelva `numero_oc` no sirve con esta versión.
+11. **Sesiones y confirmaciones en memoria:** un reinicio del servidor las pierde. `out/` se limpia al arrancar (PRD 8), por lo que las OC de la demo no sobreviven a un reinicio.
 
 ## 10. Cobertura
 
@@ -197,7 +200,7 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | Front, API y adaptador LLM | **Hecho** | Chat, aviso de confirmación, historial de llamadas, `/api/health`. |
 | Link público | **Pendiente de despliegue** | `Dockerfile` y `render.yaml` listos; falta publicarlo y poner la clave (README). |
 
-**Verificado:** `npm run demo` (6 casos con asserts, idempotencia, defensas) y `npm test` (6 pruebas del ciclo con un proveedor simulado: pregunta antes de crear, auto-confirmación rechazada, idempotencia, bloqueos firmes, error de proveedor, tope de iteraciones). El adaptador de Anthropic se probó contra un servidor local que valida el formato exacto de la petición (herramientas, `tool_result`, caché, y que la clave no viaja en el cuerpo ni en los logs). **No se ha ejecutado una conversación real con el modelo** hasta contar con la clave del despliegue; antes de la defensa conviene correr la demo del PRD (sección 11) en vivo.
+**Verificado:** `npm run demo` (6 casos con asserts, idempotencia, defensas) y `npm test` (8 pruebas: 2 del adaptador SAP inyectable y 6 del ciclo con un proveedor simulado: pregunta antes de crear, auto-confirmación rechazada, idempotencia, bloqueos firmes, error de proveedor, tope de iteraciones). El adaptador de Anthropic se probó contra un servidor local que valida el formato exacto de la petición (herramientas, `tool_result`, caché, y que la clave no viaja en el cuerpo ni en los logs). **No se ha ejecutado una conversación real con el modelo** hasta contar con la clave del despliegue; antes de la defensa conviene correr la demo del PRD (sección 11) en vivo.
 
 **Qué falta para producción:** SAP real (sección 6), autenticación y roles (quién puede confirmar excepciones), persistencia de sesiones y de `control.csv`, interpretación del contenido del mensaje de confirmación, lectura de `.xlsx`/PDF reales, observabilidad y pruebas de evaluación con el modelo.
 

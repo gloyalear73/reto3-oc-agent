@@ -756,11 +756,11 @@ var crear = definir({
       const { paquete: p, maestros, validacion: v } = r.data;
       const id = p.solicitud.solicitud_id;
       const codigos = (xs) => xs.map((x) => x.codigo);
-      const sap = new MockSapAdapter(ctx.directory);
+      const sap = ctx.sap ?? new MockSapAdapter(ctx.directory);
       const existente = await sap.buscarOrdenPorReferencia(id);
       if (existente) {
         registrar(id, "idempotente", { numero_oc: existente.numero_oc, retroactiva: v.retroactiva });
-        return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha ?? null, idempotente: true });
+        return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha, idempotente: true });
       }
       if (!v.apta) {
         registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: codigos(v.bloqueos) });

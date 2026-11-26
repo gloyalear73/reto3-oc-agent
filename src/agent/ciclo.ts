@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { config } from "../config.ts";
 import { pendientesDe, registrarMensajeUsuario } from "../domain/confirmaciones.ts";
 import { ErrorLlm, type MensajeLlm, type ProveedorLlm } from "../llm/adapter.ts";
+import type { SapAdapter } from "../sap/adapter.ts";
 import { definicionesParaModelo, ejecutarHerramienta, resumir } from "../tools/index.ts";
 
 export interface LlamadaHerramienta {
@@ -42,6 +43,8 @@ export interface ResultadoTurno {
 export interface DependenciasCiclo {
   llm: ProveedorLlm;
   directory: string;
+  /** Adaptador SAP a inyectar en las herramientas. Por defecto, el SAP simulado. */
+  sap?: SapAdapter;
   /** Devuelve el system prompt (se evalúa en cada turno para que editar el prompt no exija reiniciar). */
   system: () => string;
 }
@@ -76,7 +79,7 @@ export async function turno(sesion: Sesion, texto: string, deps: DependenciasCic
   sesion.transcripcion.push({ tipo: "usuario", texto });
   registrarMensajeUsuario(sesion.id);
 
-  const ctx = { directory: deps.directory, sessionId: sesion.id };
+  const ctx = { directory: deps.directory, sessionId: sesion.id, sap: deps.sap };
   const herramientas = definicionesParaModelo();
 
   try {
