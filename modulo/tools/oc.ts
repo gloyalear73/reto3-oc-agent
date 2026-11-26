@@ -255,6 +255,44 @@ function validar(p, m) {
       accion_sugerida: "Corregir la sub\xE1rea o el centro de costo en la solicitud."
     });
   }
+  const monedaCot = p.cotizacion?.moneda;
+  if (s.moneda !== "COP" || monedaCot !== void 0 && monedaCot !== "COP") {
+    bloqueos.push({
+      codigo: "RC11",
+      detalle: `La solicitud est\xE1 en ${s.moneda}${monedaCot && monedaCot !== s.moneda ? ` y la cotizaci\xF3n en ${monedaCot}` : ""}; este proceso solo opera en COP.`,
+      accion_sugerida: "Pedir la solicitud y la cotizaci\xF3n en COP, o gestionar la compra por el proceso de moneda extranjera.",
+      valores: { moneda_solicitud: s.moneda, moneda_cotizacion: monedaCot ?? "sin cotizaci\xF3n" }
+    });
+  }
+  const codigoIva = s.indicador_iva ?? proveedor?.indicador_iva_default;
+  if (codigoIva) {
+    const ind = m.indicadores.find((i) => i.codigo === codigoIva);
+    if (!ind) {
+      bloqueos.push({
+        codigo: "RC12",
+        detalle: `El indicador de IVA ${codigoIva} no existe en el maestro de indicadores; no se puede calcular el precio neto.`,
+        accion_sugerida: "Corregir el indicador de IVA en la solicitud."
+      });
+    } else if (p.cotizacion) {
+      const { tasa, base, valor } = p.cotizacion.iva;
+      const pct = (x) => `${+(x * 100).toFixed(2)} %`;
+      if (tasa !== null && Math.abs(tasa - ind.tasa) > 1e-9) {
+        confirmaciones.push({
+          codigo: "RC12",
+          detalle: `La cotizaci\xF3n liquida IVA al ${pct(tasa)} pero el indicador ${ind.codigo} (${ind.descripcion}) equivale a ${pct(ind.tasa)}.`,
+          accion_sugerida: "Confirmar el indicador correcto con el proveedor o corregir la solicitud antes de crear la OC.",
+          valores: { tasa_cotizacion: tasa, indicador: ind.codigo, tasa_indicador: ind.tasa }
+        });
+      } else if (base !== null && valor !== null && (Math.abs(base + valor - p.cotizacion.total) > 1 || Math.abs(base * (tasa ?? ind.tasa) - valor) > 1)) {
+        confirmaciones.push({
+          codigo: "RC12",
+          detalle: `Las cifras de IVA de la cotizaci\xF3n no cuadran: base ${cop(base)} + IVA ${cop(valor)} frente a un total de ${cop(p.cotizacion.total)}.`,
+          accion_sugerida: "Pedir al proveedor una cotizaci\xF3n con el IVA bien desglosado.",
+          valores: { base, iva: valor, total: p.cotizacion.total }
+        });
+      }
+    }
+  }
   if (!p.cotizacion) {
     confirmaciones.push({
       codigo: "RC5",
@@ -434,6 +472,13 @@ ${z2.prettifyError(r.error)}`);
   return exito(r.data);
 }
 var unaLinea = (texto, re) => texto.match(re)?.[1]?.trim() ?? null;
+function parsearIva(texto) {
+  const pct = texto.match(/^IVA\s*(\d+(?:[.,]\d+)?)\s*%/im)?.[1];
+  const tasa = pct ? Number(pct.replace(",", ".")) / 100 : null;
+  const base = parseMonto(texto.match(/^Base gravable[^:\n]*:\s*(.+)$/im)?.[1] ?? "");
+  const valor = parseMonto(texto.match(/^IVA[^:\n]*:\s*(.+)$/im)?.[1] ?? "");
+  return { tasa, base, valor };
+}
 function parsearCotizacion(texto) {
   const lineaTotal = texto.match(/^TOTAL[^:\n]*:\s*(.+)$/im)?.[1] ?? "";
   const total = parseMonto(lineaTotal);
@@ -448,6 +493,7 @@ function parsearCotizacion(texto) {
     total,
     moneda: /\bUSD\b/.test(lineaTotal) ? "USD" : "COP",
     validez_hasta: fecha && dias ? sumarDias(fecha, dias) : null,
+    iva: parsearIva(texto),
     texto
   };
 }
@@ -537,6 +583,7 @@ function validarCaso(directory, caso2, suministrado) {
 
 // src/domain/payload.ts
 import { z as z3 } from "zod/v4";
+var redondear2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
 var SOCIEDAD = "1000";
 function inferirUnidad(descripcion) {
   return /\bhoras?\b/i.test(descripcion) ? "H" : "UN";
@@ -550,6 +597,9 @@ function construirPayload(p, m, v, evidenciaSha256) {
   const condiciones = s.condiciones_pago ?? v.derivados.condiciones_pago?.valor ?? prov.condiciones_pago_default;
   const iva = s.indicador_iva ?? v.derivados.indicador_iva?.valor ?? prov.indicador_iva_default;
   const descripcion = acortar(s.descripcion, 40);
+  const indicador = m.indicadores.find((i) => i.codigo === iva);
+  if (!indicador) return falla(`El indicador de IVA ${iva} no existe en el maestro; no se puede calcular el precio neto.`);
+  const precioNeto = redondear2(s.valor_unitario / (1 + indicador.tasa));
   const candidato = {
     referencia: { solicitud_id: s.solicitud_id, correo_id: p.correo.id, cotizacion_ref: p.cotizacion?.referencia ?? null },
     sociedad: SOCIEDAD,
@@ -564,7 +614,7 @@ function construirPayload(p, m, v, evidenciaSha256) {
         descripcion,
         cantidad: s.cantidad,
         unidad: inferirUnidad(s.descripcion),
-        precio_unitario: s.valor_unitario,
+        precio_unitario: precioNeto,
         centro_costo: s.centro_costo,
         subarea: s.subarea,
         indicador_iva: iva
@@ -597,7 +647,11 @@ ${z3.prettifyError(validado.error)}`);
     },
     "posiciones[0].cantidad": { valor: s.cantidad, fuente: "solicitud" },
     "posiciones[0].unidad": { valor: candidato.posiciones[0]?.unidad, fuente: "derivado", nota: "H si la descripci\xF3n menciona horas; si no, UN" },
-    "posiciones[0].precio_unitario": { valor: s.valor_unitario, fuente: "solicitud" },
+    "posiciones[0].precio_unitario": {
+      valor: precioNeto,
+      fuente: "derivado",
+      nota: `precio neto = valor_unitario con IVA (${s.valor_unitario}) / (1 + tasa ${indicador.tasa} del indicador ${indicador.codigo}), a 2 decimales`
+    },
     "posiciones[0].centro_costo": { valor: s.centro_costo, fuente: "solicitud" },
     "posiciones[0].subarea": { valor: s.subarea, fuente: "solicitud" },
     "posiciones[0].indicador_iva": s.indicador_iva ? { valor: iva, fuente: "solicitud" } : { valor: iva, fuente: "derivado", nota: "RC6: tomado de maestro.proveedores.indicador_iva_default" },
@@ -690,7 +744,7 @@ var leer_paquete = definir({
   }
 });
 var validar2 = definir({
-  description: "Aplica las reglas de control RC1\u2013RC10 al caso y devuelve { apta, bloqueos[], confirmaciones[], derivados, retroactiva }. Los bloqueos impiden crear la OC.",
+  description: "Aplica las reglas de control RC1\u2013RC12 al caso y devuelve { apta, bloqueos[], confirmaciones[], derivados, retroactiva }. Los bloqueos impiden crear la OC.",
   args: { caso, paquete: paqueteOpcional },
   async execute({ caso: caso2, paquete }, ctx) {
     return seguro(() => {

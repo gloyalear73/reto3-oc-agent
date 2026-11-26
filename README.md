@@ -1,6 +1,6 @@
 # Agente conversacional «Órdenes de Compra SAP» — Reto 03
 
-Agente de chat que lee el paquete de una solicitud de compra, lo valida contra los maestros y las reglas RC1–RC10, muestra la OC como quedaría en SAP, genera la evidencia de aprobación y crea la OC en un SAP simulado. Las excepciones se devuelven a quien opera el agente con una recomendación; las que lo permiten requieren su confirmación en el chat.
+Agente de chat que lee el paquete de una solicitud de compra, lo valida contra los maestros y las reglas RC1–RC10 (más RC11 moneda COP y RC12 IVA vs indicador), muestra la OC como quedaría en SAP, genera la evidencia de aprobación y crea la OC en un SAP simulado. Las excepciones se devuelven a quien opera el agente con una recomendación; las que lo permiten requieren su confirmación en el chat.
 
 Documentación completa del planteamiento: [SOLUCION.md](SOLUCION.md).
 

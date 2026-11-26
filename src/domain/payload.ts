@@ -3,6 +3,9 @@ import { z } from "zod/v4";
 import { buscarProveedor } from "./controles.ts";
 import { acortar } from "./util.ts";
 
+/** Redondeo a 2 decimales (precio unitario SAP). */
+export const redondear2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
+
 const SOCIEDAD = "1000";
 
 /** Unidad SAP: solo "horas" se reconoce como H; el resto de compras son unidades. */
@@ -29,6 +32,10 @@ export function construirPayload(
   const condiciones = s.condiciones_pago ?? v.derivados.condiciones_pago?.valor ?? prov.condiciones_pago_default;
   const iva = s.indicador_iva ?? v.derivados.indicador_iva?.valor ?? prov.indicador_iva_default;
   const descripcion = acortar(s.descripcion, 40);
+  const indicador = m.indicadores.find((i) => i.codigo === iva);
+  if (!indicador) return falla(`El indicador de IVA ${iva} no existe en el maestro; no se puede calcular el precio neto.`);
+  // Supuesto: el valor de la solicitud incluye IVA y SAP recibe el precio NETO (sin IVA) por unidad.
+  const precioNeto = redondear2(s.valor_unitario / (1 + indicador.tasa));
 
   const candidato: OrdenCompra = {
     referencia: { solicitud_id: s.solicitud_id, correo_id: p.correo.id, cotizacion_ref: p.cotizacion?.referencia ?? null },
@@ -44,7 +51,7 @@ export function construirPayload(
         descripcion,
         cantidad: s.cantidad,
         unidad: inferirUnidad(s.descripcion),
-        precio_unitario: s.valor_unitario,
+        precio_unitario: precioNeto,
         centro_costo: s.centro_costo,
         subarea: s.subarea,
         indicador_iva: iva,
@@ -80,7 +87,11 @@ export function construirPayload(
     },
     "posiciones[0].cantidad": { valor: s.cantidad, fuente: "solicitud" },
     "posiciones[0].unidad": { valor: candidato.posiciones[0]?.unidad, fuente: "derivado", nota: "H si la descripción menciona horas; si no, UN" },
-    "posiciones[0].precio_unitario": { valor: s.valor_unitario, fuente: "solicitud" },
+    "posiciones[0].precio_unitario": {
+      valor: precioNeto,
+      fuente: "derivado",
+      nota: `precio neto = valor_unitario con IVA (${s.valor_unitario}) / (1 + tasa ${indicador.tasa} del indicador ${indicador.codigo}), a 2 decimales`,
+    },
     "posiciones[0].centro_costo": { valor: s.centro_costo, fuente: "solicitud" },
     "posiciones[0].subarea": { valor: s.subarea, fuente: "solicitud" },
     "posiciones[0].indicador_iva": s.indicador_iva

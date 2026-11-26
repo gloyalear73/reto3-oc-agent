@@ -24,7 +24,7 @@ const llamar = async (herramienta: string, args: Record<string, unknown>): Promi
   JSON.parse(await ejecutarHerramienta(herramienta, args, ctx)) as Respuesta;
 const codigos = (xs: unknown): string[] => (Array.isArray(xs) ? (xs as Hallazgo[]).map((x) => x.codigo) : []);
 
-// Resultado esperado de cada caso según las reglas RC1–RC10 del PRD.
+// Resultado esperado de cada caso según las reglas RC1–RC10 del PRD (RC11 y RC12 no se disparan en los fixtures oficiales).
 const ESPERADO: Record<string, { apta: boolean; bloqueos: string[]; confirmaciones: string[]; retroactiva: boolean }> = {
   "sol-001": { apta: true, bloqueos: [], confirmaciones: [], retroactiva: false },
   "sol-002": { apta: false, bloqueos: ["RC1"], confirmaciones: [], retroactiva: false },

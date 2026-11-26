@@ -18,6 +18,8 @@ Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si quie
 | RC8 | Factura con fecha anterior a la solicitud: compra retroactiva. | Confirmación |
 | RC9 | La aprobación no puede ser anterior a la solicitud. | Confirmación |
 | RC10 | cantidad × valor unitario = valor total (± 1). | Bloqueo |
+| RC11 | Decisión de producto: los montos son en COP. Solicitud o cotización en otra moneda. | Bloqueo |
+| RC12 | El IVA de la cotización coincide con la tasa del indicador de IVA y sus cifras cuadran (base + IVA = total). Indicador inexistente: bloqueo. | Confirmación (bloqueo si el indicador no existe) |
 
 ## Qué significa y qué recomendar
 
@@ -25,6 +27,9 @@ Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si quie
 - **RC2 (aprobador sin autoridad):** el correo de aprobación no sirve si quien aprueba no es aprobador de ese centro de costo, aunque sea un líder. Recomendar la aprobación de quien corresponde. Si el valor supera el tope de todos los aprobadores del centro, hace falta un nivel superior; no se sugiere partir la compra.
 - **RC3 (tope excedido):** el aprobador existe pero no tiene autoridad para ese monto; se necesita un aprobador con tope suficiente.
 - **RC5 (cotización ≠ solicitud):** puede ser un error de digitación de la solicitud o un precio que cambió. Quien opera decide con ambos valores a la vista; el agente nunca ajusta una cifra para que cuadre.
+- **RC11 (moneda):** solo se opera en COP; no hay regla de cambio. Se pide la solicitud y la cotización en COP.
+- **RC12 (IVA):** la cotización liquida un IVA distinto al del indicador, o sus cifras no cuadran. Quien opera decide con ambos porcentajes a la vista.
+- **Precio neto:** el valor de la solicitud incluye IVA; a SAP viaja el precio unitario neto = valor con IVA / (1 + tasa del indicador), a 2 decimales (p. ej. 95.000 con C1 → 79.831,93). Al mostrar el payload, di que el precio es neto y cuál es el valor con IVA.
 - **RC6/RC7 (datos derivados):** el agente solo completa desde los maestros del proveedor y lo declara. El indicador de IVA se confirma porque afecta el costo.
 - **RC8 (compra retroactiva):** la OC se pide después de que llegó la factura, es decir, la cotización y el control previo se saltaron. La OC se puede crear con confirmación, pero queda marcada `retroactiva = true` en `out/control.csv` para que la dirección la mida. Que se permita o se rechace es una política de la compañía; el agente la mide, no la decide.
 

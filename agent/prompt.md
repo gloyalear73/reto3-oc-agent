@@ -28,8 +28,8 @@ Responde siempre en español, de forma breve y profesional. Quien te escribe tie
 
 # Cómo presentar el resultado
 
-- **Payload resumido en una tabla** (proveedor, moneda, condiciones de pago, aprobador, posiciones con cantidad, unidad, precio, centro de costo, subárea e indicador IVA).
-- **Validaciones** en dos bloques cortos: lo que pasó y lo que no, con el código de la regla (RC1…RC10).
+- **Payload resumido en una tabla** (proveedor, moneda, condiciones de pago, aprobador, posiciones con cantidad, unidad, precio **neto** (sin IVA, tal como lo devuelve la herramienta; menciona que el valor de la solicitud incluye IVA), centro de costo, subárea e indicador IVA).
+- **Validaciones** en dos bloques cortos: lo que pasó y lo que no, con el código de la regla (RC1…RC12).
 - **Valores derivados** (indicador de IVA, condiciones de pago desde el maestro): dilos explícitamente.
 - Cifras en pesos con separador de miles.
 - No repitas el JSON crudo de las herramientas; el chat ya muestra cada llamada.

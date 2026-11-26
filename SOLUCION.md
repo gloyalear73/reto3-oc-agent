@@ -105,6 +105,8 @@ Implementada en `src/domain/controles.ts` como una función pura `validar(paquet
 | RC8 | Factura con fecha < `fecha_solicitud` → `retroactiva = true` + confirmación. | sol-005: factura FC-88231 del 10-ago, 17 días antes. |
 | RC9 | Fecha de aprobación ≥ `fecha_solicitud`, comparando la fecha local (sin pasar a UTC). | Sin hallazgos. |
 | RC10 | `cantidad × valor_unitario = valor_total` (±1). | Sin hallazgos. |
+| RC11 *(decisión de producto)* | Solicitud o cotización en moneda distinta de COP → **bloqueo**. | Sin hallazgos (los 6 casos son COP). |
+| RC12 *(decisión de producto)* | La tasa de IVA de la cotización (`IVA 19%`) debe ser igual a la `tasa` del indicador de la solicitud (o el del proveedor, si se derivó), y base + IVA = total y base × tasa = IVA (±1 peso). Distinto → **confirmación**; indicador inexistente → **bloqueo**. | Sin hallazgos: las 6 cotizaciones liquidan 19 % y el indicador es C1. |
 
 Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide el objetivo O2), y `demo.ts` verifica con asserts los seis resultados esperados.
 
@@ -130,7 +132,7 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | `posiciones[].numero` | `PurchaseOrderItem` |
 | `posiciones[].descripcion` | `PurchaseOrderItemText` (40 caracteres) |
 | `posiciones[].cantidad` / `unidad` | `OrderQuantity` / `PurchaseOrderQuantityUnit` |
-| `posiciones[].precio_unitario` | `NetPriceAmount` |
+| `posiciones[].precio_unitario` | `NetPriceAmount` (precio **neto**, sin IVA) |
 | `posiciones[].indicador_iva` | `TaxCode` |
 | `posiciones[].centro_costo` | imputación (`A_PurOrdAccountAssignment` → `CostCenter`, categoría `K`) |
 | `referencia.solicitud_id` | campo de referencia externa de cabecera (para idempotencia) |
@@ -169,6 +171,8 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | 3 | **Confirmación por contador de mensajes del usuario**, además del flag `confirmado`. | (a) Creer `confirmado = true`; (b) un endpoint/botón de aprobación fuera del chat, que era mi primer diseño. | (a) deja a un modelo equivocado crear OC. (b) incumple CA3: la confirmación debe ser un mensaje del usuario. El contador es estructural pero no lee el texto (límite declarado en la sección 3). |
 | 4 | **`node:http` + `fetch` + `tsx`, sin framework ni SDK.** | Express/Hono y el SDK del proveedor. | Menos dependencias que justificar (PRD 8), arranque rápido y control total del formato de errores. A cambio hay que mantener el enrutado a mano (seis rutas). |
 | 5 | **Una posición por OC.** | Soportar varias posiciones por solicitud. | Los fixtures traen una sola línea (`cantidad × valor_unitario`). El esquema ya es un arreglo, así que extenderlo no rompe el contrato. |
+| 10 | **Montos siempre en COP, IVA validado y precio neto a SAP** (decisión de producto). Moneda distinta → bloqueo RC11; IVA de la cotización ≠ tasa del indicador → confirmación RC12; `precio_unitario` = valor con IVA / (1 + tasa), a 2 decimales. | (a) Enviar el valor con IVA; (b) convertir USD; (c) ignorar la tasa del maestro. | SAP calcula el IVA con el indicador, así que recibir un precio bruto lo duplicaría. La tasa sale del maestro, no del código. A cambio, el precio tiene redondeo (95.000 → 79.831,93; ×120 = 9.579.831,60 frente a la base de la cotización, 9.579.832); la traza lo documenta. |
+| 6 | **`zod/v4` (subruta)** en lugar de `zod` raíz. | `import { z } from "zod"`. | Necesito `z.toJSONSchema` para entregar los esquemas al modelo sin otra librería; la subruta funciona tanto con zod 3.25 como con 4.x. |
 | 6 | **`zod/v4` (subruta)** en lugar de `zod` raíz. | `import { z } from "zod"`. | Necesito `z.toJSONSchema` para entregar los esquemas al modelo sin otra librería; la subruta funciona tanto con zod 3.25 como con 4.x. |
 | 7 | **Candado por solicitud** (`conCandado`) alrededor de «¿existe la OC? → créala». | Confiar solo en la idempotencia de SAP. | Una prueba de concurrencia mostró que dos sesiones simultáneas creaban dos OC. El candado es en proceso; con varias instancias la atomicidad debe venir de SAP (referencia externa única). |
 | 8 | **Clave de acceso opcional + límite de mensajes por IP** (`ACCESS_KEY`, `RATE_LIMIT_POR_MIN`, `TRUST_PROXY`). | Dejar el enlace abierto solo con topes de tokens. | El enlace público gasta la clave del modelo. La comparación es en tiempo constante y hay freno a la fuerza bruta. Es opcional: el PRD (9.2) habla de «si aplica, la clave de acceso». |
@@ -176,7 +180,7 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 
 ## 9. Supuestos
 
-1. **El valor de la solicitud incluye IVA.** Las cotizaciones dicen «Precio unitario (IVA incl.)» y su total coincide con `valor_total`; por eso `precio_unitario` del payload es el `valor_unitario` de la solicitud. Si SAP espera precio neto, el cálculo cambia (base gravable = total / 1,19).
+1. **El valor de la solicitud incluye IVA y a SAP viaja el precio neto** *(decisión de producto)*. **El valor de la solicitud incluye IVA.** Las cotizaciones dicen «Precio unitario (IVA incl.)» y su total coincide con `valor_total`; por eso `precio_unitario` del payload es el `valor_unitario` de la solicitud. Si SAP espera precio neto, el cálculo cambia (base gravable = total / 1,19).
 2. **Unidad de medida:** `H` si la descripción menciona «horas»; en cualquier otro caso `UN`. `MES` no se infiere porque «12 meses» en una licencia no es una unidad de compra.
 3. **Descripción de la posición:** se corta en el límite de palabra a ≤ 40 caracteres (límite SAP) y queda anotado en la traza.
 4. **RC3 solo se evalúa si RC2 identificó un aprobador válido** (sección 5).
@@ -197,10 +201,10 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | RC8 (retroactiva): ¿la factura se compara con la fecha de la solicitud o con la de la OC? | Con `fecha_solicitud`. | Definición de negocio. |
 | Qué es una «confirmación»: ¿cualquier mensaje posterior o uno afirmativo? | Solo se verifica que exista un mensaje posterior de la persona; no se lee su contenido (decisión 3). El prompt obliga a preguntar y a no confirmar por su cuenta. | Un clasificador de intención o botones tipados. |
 | `confirmado_por` no tiene identidad. | Valor fijo «analista (chat)». | Autenticación real. |
-| Topes en USD frente a COP. | No hay conversión: se compara el valor tal como viene. | Regla de cambio (fecha y fuente de la tasa). |
-| Precio enviado a SAP: ¿bruto o neto? | Bruto (supuesto 1). | Qué espera SAP. Dividir por 1,19 genera redondeos (180.000 / 1,19 = 151.260,50). |
+| Topes en USD frente a COP. | **Resuelto por producto: solo COP**; otra moneda se bloquea (RC11). | Regla de cambio, solo si más adelante se admite otra moneda. |
+| Precio enviado a SAP: ¿bruto o neto? | **Resuelto por producto: neto** (supuesto 1, RC12). | Confirmar con SAP real el número de decimales y el redondeo del `NetPriceAmount`. |
 | Coincidencia de nombre de proveedor sin NIT. | Normaliza tildes, mayúsculas y sufijos societarios; si hay NIT, manda el NIT. | Reglas de homónimos con el maestro real. |
-| La cotización trae su propio IVA: ¿se contrasta con el indicador? | No; se usa el indicador del maestro. `tasa` de `indicadores-iva.json` hoy no se usa. | Regla de qué hacer si difieren. |
+| La cotización trae su propio IVA: ¿se contrasta con el indicador? | **Resuelto por producto: sí** (RC12, confirmación). La `tasa` del maestro se usa también para el precio neto. | Si difieren, qué IVA prevalece; hoy prevalece el indicador de la solicitud tras confirmar. |
 | `out/` se limpia al inicio, pero la idempotencia debería ser durable. | Se respeta el PRD; la idempotencia vale dentro de la vida del proceso. | Persistencia real (SAP). |
 
 ## 10. Cobertura
@@ -208,7 +212,7 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | Historia | Estado | Notas |
 |---|---|---|
 | HU-1 Leer el paquete | **Hecho** | Adjunto ausente → `null` + `faltantes`; JSON malformado o monto no numérico → `{ ok:false, error }` legible. |
-| HU-2 Validar | **Hecho** | RC1–RC10; `bloqueos`, `confirmaciones`, `derivados`, `retroactiva`. |
+| HU-2 Validar | **Hecho** | RC1–RC10 + RC11 (moneda COP) + RC12 (IVA vs indicador); `bloqueos`, `confirmaciones`, `derivados`, `retroactiva`. |
 | HU-3 Payload | **Hecho** | Validado con zod; traza por campo en `out/<caso>/trazabilidad.json`. |
 | HU-4 Evidencia | **Hecho** (P0 + P1) | `aprobacion.txt` con sha256 y `aprobacion.pdf` (pdf-lib). |
 | HU-5 Crear OC | **Hecho** | Números desde 4500000001, `ordenes.jsonl`, idempotencia, `control.csv` con cada intento. |
@@ -218,9 +222,9 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | Front, API y adaptador LLM | **Hecho** | Chat, aviso de confirmación, historial de llamadas, `/api/health`. |
 | Link público | **Pendiente de despliegue** | `Dockerfile` y `render.yaml` listos; falta publicarlo y poner la clave (README). |
 
-**Verificado:** `npm run demo` (6 casos con asserts, idempotencia, defensas) y `npm test` (13 pruebas: adaptador SAP inyectable, concurrencia —dos solicitudes simultáneas generan una sola OC—, seguridad —clave, límite por minuto, IP detrás del proxy— y el ciclo con un proveedor simulado: pregunta antes de crear, auto-confirmación rechazada, idempotencia, bloqueos firmes, error de proveedor, tope de iteraciones, excepciones con valores reales). También se probó la interfaz de punta a punta con un navegador y una API del modelo simulada (clave de acceso, aviso de confirmación, creación). El adaptador de Anthropic se probó contra un servidor local que valida el formato exacto de la petición (herramientas, `tool_result`, caché, y que la clave no viaja en el cuerpo ni en los logs). **No se ha ejecutado una conversación real con el modelo** hasta contar con la clave del despliegue; antes de la defensa conviene correr la demo del PRD (sección 11) en vivo.
+**Verificado:** `npm run demo` (6 casos con asserts, idempotencia, defensas) y `npm test` (22 pruebas, incluidas 9 de moneda, IVA y precio neto: adaptador SAP inyectable, concurrencia —dos solicitudes simultáneas generan una sola OC—, seguridad —clave, límite por minuto, IP detrás del proxy— y el ciclo con un proveedor simulado: pregunta antes de crear, auto-confirmación rechazada, idempotencia, bloqueos firmes, error de proveedor, tope de iteraciones, excepciones con valores reales). También se probó la interfaz de punta a punta con un navegador y una API del modelo simulada (clave de acceso, aviso de confirmación, creación). El adaptador de Anthropic se probó contra un servidor local que valida el formato exacto de la petición (herramientas, `tool_result`, caché, y que la clave no viaja en el cuerpo ni en los logs). **No se ha ejecutado una conversación real con el modelo** hasta contar con la clave del despliegue; antes de la defensa conviene correr la demo del PRD (sección 11) en vivo.
 
-**Pendientes por falta de definición** (sección 9.1): ligar la confirmación a las excepciones exactas mostradas (token o hash), regla de cambio USD/COP, precio neto frente a bruto, contraste del IVA de la cotización con el indicador, normalización avanzada de proveedores.
+**Pendientes por falta de definición** (sección 9.1): ligar la confirmación a las excepciones exactas mostradas (token o hash), normalización avanzada de proveedores y redondeo del precio neto en el SAP real.
 
 **Qué falta para producción:** SAP real (sección 6), autenticación y roles (quién puede confirmar excepciones), persistencia de sesiones, del tope de tokens y de `control.csv`, interpretación del contenido del mensaje de confirmación, lectura de `.xlsx`/PDF reales, observabilidad y pruebas de evaluación con el modelo.
 

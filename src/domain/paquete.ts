@@ -40,6 +40,15 @@ function leerJson<S extends z.ZodType>(ruta: string, nombre: string, esquema: S)
 
 const unaLinea = (texto: string, re: RegExp): string | null => texto.match(re)?.[1]?.trim() ?? null;
 
+/** IVA desglosado de la cotización: «Base gravable: COP x» e «IVA 19%: COP y». */
+export function parsearIva(texto: string): { tasa: number | null; base: number | null; valor: number | null } {
+  const pct = texto.match(/^IVA\s*(\d+(?:[.,]\d+)?)\s*%/im)?.[1];
+  const tasa = pct ? Number(pct.replace(",", ".")) / 100 : null;
+  const base = parseMonto(texto.match(/^Base gravable[^:\n]*:\s*(.+)$/im)?.[1] ?? "");
+  const valor = parseMonto(texto.match(/^IVA[^:\n]*:\s*(.+)$/im)?.[1] ?? "");
+  return { tasa, base, valor };
+}
+
 export function parsearCotizacion(texto: string): Paquete["cotizacion"] {
   const lineaTotal = texto.match(/^TOTAL[^:\n]*:\s*(.+)$/im)?.[1] ?? "";
   const total = parseMonto(lineaTotal);
@@ -54,6 +63,7 @@ export function parsearCotizacion(texto: string): Paquete["cotizacion"] {
     total,
     moneda: /\bUSD\b/.test(lineaTotal) ? "USD" : "COP",
     validez_hasta: fecha && dias ? sumarDias(fecha, dias) : null,
+    iva: parsearIva(texto),
     texto,
   };
 }

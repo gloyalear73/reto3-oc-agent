@@ -40,7 +40,7 @@ export const leer_paquete = definir({
 
 export const validar = definir({
   description:
-    "Aplica las reglas de control RC1–RC10 al caso y devuelve { apta, bloqueos[], confirmaciones[], derivados, retroactiva }. Los bloqueos impiden crear la OC.",
+    "Aplica las reglas de control RC1–RC12 al caso y devuelve { apta, bloqueos[], confirmaciones[], derivados, retroactiva }. Los bloqueos impiden crear la OC.",
   args: { caso, paquete: paqueteOpcional },
   async execute({ caso, paquete }, ctx) {
     return seguro(() => {

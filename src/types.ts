@@ -52,6 +52,8 @@ export interface Paquete {
     total: number;
     moneda: string;
     validez_hasta: string | null;
+    /** IVA desglosado en la cotización (null si no lo informa). `tasa` en fracción: 0.19. */
+    iva: { tasa: number | null; base: number | null; valor: number | null };
     texto: string;
   } | null;
   aprobacion: { de: string; para: string; fecha: string; asunto: string; aprobado: boolean; texto: string } | null;

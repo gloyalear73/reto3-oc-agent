@@ -30,7 +30,7 @@ const listaAprobadores = (centro: CentroCosto): string =>
   centro.aprobadores.map((a) => `${a.nombre ?? a.email} (tope ${cop(a.tope)})`).join("; ");
 
 /**
- * Aplica RC1–RC10 (PRD 7.3). Función pura: misma entrada, misma salida.
+ * Aplica RC1–RC10 (PRD 7.3) más RC11 (moneda COP) y RC12 (IVA de la cotización vs indicador), decididas por producto. Función pura: misma entrada, misma salida.
  * Bloqueo = impide crear. Confirmación = permite crear solo con confirmado = true.
  */
 export function validar(p: Paquete, m: Maestros): Validacion {
@@ -110,6 +110,52 @@ export function validar(p: Paquete, m: Maestros): Validacion {
       detalle: `La subárea "${s.subarea}" no pertenece a ${centro.centro_costo}. Subáreas válidas: ${centro.subareas.join(", ")}.`,
       accion_sugerida: "Corregir la subárea o el centro de costo en la solicitud.",
     });
+  }
+
+  // RC11 · supuesto del reto: todos los montos son en COP. Sin regla de cambio no se puede comparar ni topar otra moneda.
+  const monedaCot = p.cotizacion?.moneda;
+  if (s.moneda !== "COP" || (monedaCot !== undefined && monedaCot !== "COP")) {
+    bloqueos.push({
+      codigo: "RC11",
+      detalle: `La solicitud está en ${s.moneda}${monedaCot && monedaCot !== s.moneda ? ` y la cotización en ${monedaCot}` : ""}; este proceso solo opera en COP.`,
+      accion_sugerida: "Pedir la solicitud y la cotización en COP, o gestionar la compra por el proceso de moneda extranjera.",
+      valores: { moneda_solicitud: s.moneda, moneda_cotizacion: monedaCot ?? "sin cotización" },
+    });
+  }
+
+  // RC12 · el IVA de la cotización debe coincidir con el indicador de IVA (tasa del maestro) y sus cifras deben cuadrar
+  const codigoIva = s.indicador_iva ?? proveedor?.indicador_iva_default;
+  if (codigoIva) {
+    const ind = m.indicadores.find((i) => i.codigo === codigoIva);
+    if (!ind) {
+      bloqueos.push({
+        codigo: "RC12",
+        detalle: `El indicador de IVA ${codigoIva} no existe en el maestro de indicadores; no se puede calcular el precio neto.`,
+        accion_sugerida: "Corregir el indicador de IVA en la solicitud.",
+      });
+    } else if (p.cotizacion) {
+      const { tasa, base, valor } = p.cotizacion.iva;
+      const pct = (x: number) => `${+(x * 100).toFixed(2)} %`;
+      if (tasa !== null && Math.abs(tasa - ind.tasa) > 1e-9) {
+        confirmaciones.push({
+          codigo: "RC12",
+          detalle: `La cotización liquida IVA al ${pct(tasa)} pero el indicador ${ind.codigo} (${ind.descripcion}) equivale a ${pct(ind.tasa)}.`,
+          accion_sugerida: "Confirmar el indicador correcto con el proveedor o corregir la solicitud antes de crear la OC.",
+          valores: { tasa_cotizacion: tasa, indicador: ind.codigo, tasa_indicador: ind.tasa },
+        });
+      } else if (
+        base !== null &&
+        valor !== null &&
+        (Math.abs(base + valor - p.cotizacion.total) > 1 || Math.abs(base * (tasa ?? ind.tasa) - valor) > 1)
+      ) {
+        confirmaciones.push({
+          codigo: "RC12",
+          detalle: `Las cifras de IVA de la cotización no cuadran: base ${cop(base)} + IVA ${cop(valor)} frente a un total de ${cop(p.cotizacion.total)}.`,
+          accion_sugerida: "Pedir al proveedor una cotización con el IVA bien desglosado.",
+          valores: { base, iva: valor, total: p.cotizacion.total },
+        });
+      }
+    }
   }
 
   // RC5 · cotización vs solicitud (±2 %)
