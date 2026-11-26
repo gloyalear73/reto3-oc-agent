@@ -67,6 +67,12 @@
   .confirm { align-self:stretch; border:2px solid var(--warn); background:var(--warn-bg); color:var(--ink); border-radius:10px; padding:11px 14px; }
   .confirm strong { color:var(--warn); }
   .confirm .row { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .confirm ul.exc { margin:6px 0 0; padding-left:18px; }
+  .confirm ul.exc li { margin:3px 0; }
+  .confirm .caso { font-size:12px; color:var(--muted); margin-top:8px; }
+  .aviso { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 14px; background:var(--warn-bg); border-bottom:1px solid var(--line); }
+  .aviso[hidden] { display:none; }
+  .aviso input { flex:1; min-width:180px; }
   .pensando { align-self:flex-start; color:var(--muted); font-size:14px; padding:4px 2px; }
   .pensando i { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--muted); margin-right:3px; animation:b 1s infinite ease-in-out; }
   .pensando i:nth-child(2) { animation-delay:.15s } .pensando i:nth-child(3) { animation-delay:.3s }
@@ -94,6 +100,7 @@
 
   <section class="panel" id="chatpanel">
     <h2>Chat con el agente <button class="mini" id="nueva" type="button">Nueva sesión</button></h2>
+    <div class="aviso" id="clave" hidden><label for="claveIn">Clave de acceso</label><input id="claveIn" type="password" autocomplete="off" placeholder="La clave que te entregaron"><button class="primary" id="claveOk" type="button">Entrar</button></div>
     <div id="chat" aria-live="polite"></div>
     <form id="f"><input id="msg" placeholder="Ej.: Procesa la solicitud sol-001" autocomplete="off" maxlength="2000"><button class="primary" id="send">Enviar</button></form>
   </section>
@@ -103,6 +110,10 @@
 const $ = (id) => document.getElementById(id);
 let sessionId = nuevoId();
 let ocupado = false;
+let clave = ""; try { clave = sessionStorage.getItem("ocClave") || ""; } catch { /* sin almacenamiento: se pedirá de nuevo */ }
+// Todas las llamadas protegidas llevan la clave de acceso (si hay) en una cabecera.
+const api = (url, opts = {}) => fetch(url, { ...opts, headers: { ...(opts.headers || {}), ...(clave ? { "x-access-key": clave } : {}) } });
+function pedirClave() { $("clave").hidden = false; $("claveIn").focus(); }
 
 function nuevoId() { return (crypto.randomUUID && crypto.randomUUID()) || ("s-" + Date.now() + "-" + Math.random().toString(16).slice(2)); }
 function el(tag, cls, texto) { const e = document.createElement(tag); if (cls) e.className = cls; if (texto !== undefined) e.textContent = texto; return e; }
@@ -150,7 +161,7 @@ function tarjetaHerramienta(c) {
   $("chat").append(d); bajar();
 }
 
-function avisoConfirmacion(pendientes) {
+function avisoConfirmacion(pendientes, excepciones) {
   document.querySelectorAll(".confirm").forEach((n) => n.remove());
   $("f").classList.toggle("espera", pendientes.length > 0);
   if (!pendientes.length) return;
@@ -159,7 +170,16 @@ function avisoConfirmacion(pendientes) {
   const fila = el("div", "row");
   const si = el("button", "primary", "Confirmo"), no = el("button", "danger", "No confirmo");
   si.onclick = () => enviar("Confirmo"); no.onclick = () => enviar("No confirmo, no la crees.");
-  fila.append(si, no); box.append(t, fila);
+  box.append(t);
+  // Excepciones generadas por el servidor, con los valores exactos: no dependen de cómo las redacte el modelo.
+  (excepciones || []).forEach((x) => {
+    if (!x.items || !x.items.length) return;
+    if (excepciones.length > 1) box.append(el("div", "caso", x.caso));
+    const ul = el("ul", "exc");
+    x.items.forEach((i) => { const li = el("li"); li.innerHTML = "<strong>" + esc(i.codigo) + "</strong> " + esc(i.detalle); ul.append(li); });
+    box.append(ul);
+  });
+  fila.append(si, no); box.append(fila);
   $("chat").append(box); bajar();
 }
 
@@ -176,15 +196,16 @@ async function enviar(texto) {
   document.querySelectorAll(".confirm button").forEach((b) => (b.disabled = true));
   msgUsuario(texto); pensando(true);
   try {
-    const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, message: texto }) });
+    const r = await api("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, message: texto }) });
     const d = await r.json(); pensando(false);
+    if (r.status === 401) pedirClave();
     if (!r.ok) { msgError(d.error || "Error del servidor"); }
     else {
       // Se muestran en el orden real: llamadas a herramientas y luego la respuesta.
       (d.toolCalls || []).forEach(tarjetaHerramienta);
       if (d.reply) msgBot(d.reply);
       if (d.error) msgError(d.error);
-      avisoConfirmacion(d.pendientes || []);
+      avisoConfirmacion(d.pendientes || [], d.excepciones || []);
     }
   } catch { pensando(false); msgError("No se pudo contactar el servidor. Revisa tu conexión."); }
   ocupado = false; $("send").disabled = false; $("msg").focus(); cargarControl();
@@ -192,7 +213,8 @@ async function enviar(texto) {
 
 async function cargarControl() {
   try {
-    const { filas } = await (await fetch("/api/control")).json();
+    const rc = await api("/api/control"); if (rc.status === 401) { pedirClave(); return; }
+    const { filas } = await rc.json();
     const box = $("control"); box.textContent = "";
     if (!filas.length) { box.append(el("span", "hint", "Sin movimientos todavía.")); return; }
     const t = el("table", "ctl"); const cab = el("tr");
@@ -217,13 +239,28 @@ $("recargar").onclick = cargarControl;
 $("nueva").onclick = reiniciar;
 $("demoPrompt").onclick = () => enviar('Procesa la solicitud "sol-004". Muéstrame la OC como quedaría en SAP, qué validaciones pasó y cuáles no, y no la crees hasta que yo lo confirme.');
 
+async function cargarCasos() {
+  const r = await api("/api/casos");
+  if (r.status === 401) { pedirClave(); return false; }
+  const { casos } = await r.json();
+  $("casos").textContent = "";
+  casos.forEach((c) => { const b = el("button", "mini", c); b.type = "button"; b.onclick = () => enviar("Procesa la solicitud " + c); $("casos").append(b); });
+  return true;
+}
+$("claveOk").onclick = async () => {
+  const v = $("claveIn").value.trim(); if (!v) return;
+  clave = v; try { sessionStorage.setItem("ocClave", v); } catch { /* ignorar */ }
+  $("claveIn").value = "";
+  if (await cargarCasos()) { $("clave").hidden = true; cargarControl(); } else { msgError("La clave no es correcta."); }
+};
+$("claveIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("claveOk").click(); } });
+
 (async function init() {
   try {
     const h = await (await fetch("/api/health")).json(); const b = $("estado");
     b.textContent = h.configurado ? h.provider + " · " + h.model : "Sin clave del modelo (" + h.provider + ")";
     b.classList.add(h.configurado ? "on" : "off");
-    const { casos } = await (await fetch("/api/casos")).json();
-    casos.forEach((c) => { const b = el("button", "mini", c); b.type = "button"; b.onclick = () => enviar("Procesa la solicitud " + c); $("casos").append(b); });
+    await cargarCasos();
   } catch { $("estado").textContent = "sin conexión"; $("estado").classList.add("off"); }
   reiniciar(); cargarControl();
 })();

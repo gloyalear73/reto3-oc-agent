@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "../config.ts";
-import { pendientesDe, registrarMensajeUsuario } from "../domain/confirmaciones.ts";
+import { excepcionesPendientes, pendientesDe, registrarMensajeUsuario, type Excepcion } from "../domain/confirmaciones.ts";
 import { ErrorLlm, type MensajeLlm, type ProveedorLlm } from "../llm/adapter.ts";
 import type { SapAdapter } from "../sap/adapter.ts";
 import { definicionesParaModelo, ejecutarHerramienta, resumir } from "../tools/index.ts";
@@ -36,6 +36,8 @@ export interface ResultadoTurno {
   toolCalls: LlamadaHerramienta[];
   needsConfirmation: boolean;
   pendientes: string[];
+  /** Excepciones por caso, generadas por el servidor (no por el modelo), con los valores que se muestran. */
+  excepciones: Array<{ caso: string; items: Excepcion[] }>;
   tokensSesion: number;
   error?: string;
 }
@@ -150,6 +152,7 @@ export async function turno(sesion: Sesion, texto: string, deps: DependenciasCic
     toolCalls,
     needsConfirmation: pendientes.length > 0,
     pendientes,
+    excepciones: excepcionesPendientes(sesion.id),
     tokensSesion: sesion.tokens,
     ...(error ? { error } : {}),
   };

@@ -7,6 +7,7 @@ import { config, RAIZ } from "./config.ts";
 import { listarCasos } from "./domain/paquete.ts";
 import { leerControl, reiniciarSalida } from "./domain/salida.ts";
 import { crearProveedor } from "./llm/index.ts";
+import { claveValida, crearLimitador, ipCliente } from "./seguridad.ts";
 
 try {
   process.loadEnvFile?.(join(RAIZ, ".env")); // opcional: carga .env si existe (Node ≥ 20.12)
@@ -16,6 +17,12 @@ try {
 
 const llm = crearProveedor();
 reiniciarSalida(RAIZ); // PRD 8: out/ se limpia al inicio
+
+const cfg = config();
+const limiteChat = crearLimitador(cfg.limiteMensajesPorMinuto);
+const limiteFallos = crearLimitador(10); // intentos de clave incorrectos por minuto y por IP
+const esRutaProtegida = (ruta: string) =>
+  ruta === "/api/chat" || ruta === "/api/casos" || ruta === "/api/control" || ruta.startsWith("/api/sessions/");
 
 const MAX_SESIONES = 200;
 const ID_SESION = /^[\w-]{8,64}$/;
@@ -59,7 +66,16 @@ const servidor = createServer(async (req, res) => {
 
     // Nunca expone claves: solo proveedor, modelo y si hay credencial configurada.
     if (req.method === "GET" && ruta === "/api/health") {
-      return json(res, 200, { ok: true, provider: llm.nombre, model: llm.modelo, configurado: llm.configurado });
+      return json(res, 200, { ok: true, provider: llm.nombre, model: llm.modelo, configurado: llm.configurado, protegido: cfg.claveAcceso !== "" });
+    }
+
+    const ip = ipCliente(cfg.confiarProxy ? req.headers["x-forwarded-for"] : undefined, req.socket.remoteAddress);
+    if (esRutaProtegida(ruta)) {
+      const recibida = req.headers["x-access-key"];
+      if (!claveValida(cfg.claveAcceso, typeof recibida === "string" ? recibida : undefined)) {
+        if (!limiteFallos.permitir(ip)) return json(res, 429, { error: "Demasiados intentos con clave incorrecta. Espera un minuto." });
+        return json(res, 401, { error: "Se requiere la clave de acceso.", requiere_clave: true });
+      }
     }
 
     if (req.method === "GET" && ruta === "/api/casos") return json(res, 200, { casos: listarCasos(RAIZ) });
@@ -72,6 +88,9 @@ const servidor = createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && ruta === "/api/chat") {
+      if (!limiteChat.permitir(ip)) {
+        return json(res, 429, { error: `Demasiados mensajes seguidos (máximo ${cfg.limiteMensajesPorMinuto} por minuto). Espera un momento e inténtalo de nuevo.` });
+      }
       const cuerpo = (await leerCuerpo(req)) as { sessionId?: unknown; message?: unknown };
       const message = typeof cuerpo.message === "string" ? cuerpo.message.trim() : "";
       if (!message) return json(res, 400, { error: "Falta `message`." });

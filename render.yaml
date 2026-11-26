@@ -13,3 +13,9 @@ services:
         value: "200000"
       - key: MAX_TOKENS_GLOBAL
         value: "1000000"
+      - key: ACCESS_KEY
+        sync: false # opcional: clave de acceso al enlace; se define en el panel de Render
+      - key: RATE_LIMIT_POR_MIN
+        value: "20"
+      - key: TRUST_PROXY
+        value: "1" # Render pone un proxy delante

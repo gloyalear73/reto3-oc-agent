@@ -8,6 +8,7 @@ import {
   consumirPendiente,
   marcarPendiente,
 } from "../domain/confirmaciones.ts";
+import { conCandado } from "../domain/candado.ts";
 import { generarEvidencia } from "../domain/evidencia.ts";
 import { resolverCaso, validarCaso } from "../domain/flujo.ts";
 import { construirPayload } from "../domain/payload.ts";
@@ -47,7 +48,7 @@ export const validar = definir({
       if (!r.ok) return fail(r.error);
       // Las excepciones ya se las va a mostrar el agente al usuario: desde aquí un "confirmo" posterior es verificable.
       const { apta, confirmaciones } = r.data.validacion;
-      if (apta && confirmaciones.length > 0) marcarPendiente(ctx.sessionId, caso);
+      if (apta && confirmaciones.length > 0) marcarPendiente(ctx.sessionId, caso, confirmaciones);
       return ok(r.data.validacion);
     });
   },
@@ -103,7 +104,7 @@ export const construir_payload = definir({
       );
 
       // Se le muestra al usuario: desde ahora, crear con excepciones exige un mensaje posterior suyo.
-      if (c.data.payload.excepciones.length > 0) marcarPendiente(ctx.sessionId, caso);
+      if (c.data.payload.excepciones.length > 0) marcarPendiente(ctx.sessionId, caso, c.data.payload.excepciones);
 
       return ok({
         payload: c.data.payload,
@@ -157,69 +158,73 @@ export const crear = definir({
       const codigos = (xs: { codigo: string }[]) => xs.map((x) => x.codigo);
       const sap = ctx.sap ?? new MockSapAdapter(ctx.directory);
 
-      // Idempotencia: la misma solicitud nunca genera una segunda OC.
-      const existente = await sap.buscarOrdenPorReferencia(id);
-      if (existente) {
-        registrar(id, "idempotente", { numero_oc: existente.numero_oc, retroactiva: v.retroactiva });
-        return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha, idempotente: true });
-      }
-
-      if (!v.apta) {
-        registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: codigos(v.bloqueos) });
-        return fail("La OC no se puede crear: hay bloqueos.", { bloqueos: v.bloqueos });
-      }
-
-      if (v.confirmaciones.length > 0) {
-        if (!confirmado) {
-          marcarPendiente(ctx.sessionId, caso);
-          registrar(id, "pendiente_confirmacion", {
-            retroactiva: v.retroactiva,
-            confirmaciones: codigos(v.confirmaciones),
-          });
-          return fail("Requiere confirmación humana antes de crear la OC. Pregúntale al usuario y espera su respuesta.", {
-            requiere_confirmacion: true,
-            confirmaciones: v.confirmaciones,
-          });
+      // Sección crítica: «¿ya existe la OC? → créala» es atómico por solicitud. Dos sesiones que piden lo mismo
+      // a la vez no duplican la OC: la segunda espera y recibe la existente (idempotente).
+      return conCandado(`${ctx.directory}::${id}`, async () => {
+        // Idempotencia: la misma solicitud nunca genera una segunda OC.
+        const existente = await sap.buscarOrdenPorReferencia(id);
+        if (existente) {
+          registrar(id, "idempotente", { numero_oc: existente.numero_oc, retroactiva: v.retroactiva });
+          return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha, idempotente: true });
         }
-        if (!confirmacionVerificable(ctx.sessionId, caso)) {
-          registrar(id, "pendiente_confirmacion", {
-            retroactiva: v.retroactiva,
-            confirmaciones: codigos(v.confirmaciones),
-          });
-          return fail(
-            "No hay una confirmación verificable: el usuario debe responder en un mensaje posterior a ver las excepciones. Muéstraselas y espera.",
-            { requiere_confirmacion: true, confirmaciones: v.confirmaciones },
-          );
+
+        if (!v.apta) {
+          registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: codigos(v.bloqueos) });
+          return fail("La OC no se puede crear: hay bloqueos.", { bloqueos: v.bloqueos });
         }
-      }
 
-      if (!p.aprobacion) return fail("No se puede crear la OC sin correo de aprobación.");
-      const evidencia = await generarEvidencia(ctx.directory, caso, p.aprobacion);
-      const c = construirPayload(p, maestros, v, evidencia.sha256);
-      if (!c.ok) return fail(c.error);
-      if (payload !== undefined && canonico(payload) !== canonico(c.data.payload)) {
-        return fail("El payload enviado no coincide con el validado. Omite `payload`: la OC se construye en el servidor.");
-      }
+        if (v.confirmaciones.length > 0) {
+          if (!confirmado) {
+            marcarPendiente(ctx.sessionId, caso, v.confirmaciones);
+            registrar(id, "pendiente_confirmacion", {
+              retroactiva: v.retroactiva,
+              confirmaciones: codigos(v.confirmaciones),
+            });
+            return fail("Requiere confirmación humana antes de crear la OC. Pregúntale al usuario y espera su respuesta.", {
+              requiere_confirmacion: true,
+              confirmaciones: v.confirmaciones,
+            });
+          }
+          if (!confirmacionVerificable(ctx.sessionId, caso)) {
+            registrar(id, "pendiente_confirmacion", {
+              retroactiva: v.retroactiva,
+              confirmaciones: codigos(v.confirmaciones),
+            });
+            return fail(
+              "No hay una confirmación verificable: el usuario debe responder en un mensaje posterior a ver las excepciones. Muéstraselas y espera.",
+              { requiere_confirmacion: true, confirmaciones: v.confirmaciones },
+            );
+          }
+        }
 
-      // Defensa en profundidad: SAP (en producción, en tiempo real) debe confirmar al proveedor.
-      const enSap = await sap.consultarProveedor(c.data.payload.proveedor.nit);
-      if (!enSap?.activo) {
-        registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: ["RC1"] });
-        return fail("SAP no reconoce al proveedor como activo.");
-      }
+        if (!p.aprobacion) return fail("No se puede crear la OC sin correo de aprobación.");
+        const evidencia = await generarEvidencia(ctx.directory, caso, p.aprobacion);
+        const c = construirPayload(p, maestros, v, evidencia.sha256);
+        if (!c.ok) return fail(c.error);
+        if (payload !== undefined && canonico(payload) !== canonico(c.data.payload)) {
+          return fail("El payload enviado no coincide con el validado. Omite `payload`: la OC se construye en el servidor.");
+        }
 
-      const orden = {
-        ...c.data.payload,
-        excepciones: c.data.payload.excepciones.map((e) => ({ ...e, confirmado_por: "analista (chat)" })),
-      };
-      const creada = await sap.crearOrden(orden);
-      consumirPendiente(ctx.sessionId, caso);
-      registrar(id, "creada", {
-        numero_oc: creada.numero_oc,
-        retroactiva: v.retroactiva,
-        confirmaciones: codigos(v.confirmaciones),
+        // Defensa en profundidad: SAP (en producción, en tiempo real) debe confirmar al proveedor.
+        const enSap = await sap.consultarProveedor(c.data.payload.proveedor.nit);
+        if (!enSap?.activo) {
+          registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: ["RC1"] });
+          return fail("SAP no reconoce al proveedor como activo.");
+        }
+
+        const orden = {
+          ...c.data.payload,
+          excepciones: c.data.payload.excepciones.map((e) => ({ ...e, confirmado_por: "analista (chat)" })),
+        };
+        const creada = await sap.crearOrden(orden);
+        consumirPendiente(ctx.sessionId, caso);
+        registrar(id, "creada", {
+          numero_oc: creada.numero_oc,
+          retroactiva: v.retroactiva,
+          confirmaciones: codigos(v.confirmaciones),
+        });
+        return ok({ numero_oc: creada.numero_oc, fecha: creada.fecha, idempotente: false, evidencia: evidencia.ruta });
       });
-      return ok({ numero_oc: creada.numero_oc, fecha: creada.fecha, idempotente: false, evidencia: evidencia.ruta });
     });
   },
 });

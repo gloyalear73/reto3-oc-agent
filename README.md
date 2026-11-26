@@ -5,7 +5,7 @@ Agente de chat que lee el paquete de una solicitud de compra, lo valida contra l
 Documentación completa del planteamiento: [SOLUCION.md](SOLUCION.md).
 
 **Link de prueba:** `<pegar aquí la URL pública del despliegue>`
-**Clave de acceso:** no aplica (el link es público; el gasto está acotado por topes, ver variables).
+**Clave de acceso:** `<si se define ACCESS_KEY, indicarla aquí; si no, no aplica>`. Sin `ACCESS_KEY` el enlace es público y el gasto queda acotado por topes y por un límite de mensajes por minuto.
 
 ## Levantar en local (un comando)
 
@@ -44,14 +44,17 @@ npm run typecheck   # tsc --noEmit
 | `MAX_TOKENS_SESION` | `200000` | Tope de tokens por sesión. |
 | `MAX_TOKENS_GLOBAL` | `2000000` | Tope de tokens del proceso (protege tu clave en un link público). |
 | `LLM_TIMEOUT_MS` | `60000` | Timeout hacia el proveedor. |
+| `ACCESS_KEY` | vacía | Opcional. Si se define, `/api/chat`, `/api/casos`, `/api/control` y `/api/sessions/*` exigen el header `x-access-key` (la interfaz la pide y la guarda solo en la pestaña). Tras 10 intentos erróneos por minuto y por IP responde 429. |
+| `RATE_LIMIT_POR_MIN` | `20` | Mensajes de chat por minuto y por IP (429 al excederlo). |
+| `TRUST_PROXY` | `0` | `1` detrás de un proxy (Render): la IP se toma del último `X-Forwarded-For`. |
 
 ## API
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `POST` | `/api/chat` | `{ sessionId, message }` → `{ reply, toolCalls[], needsConfirmation, pendientes[], tokensSesion }` |
+| `POST` | `/api/chat` | `{ sessionId, message }` → `{ reply, toolCalls[], needsConfirmation, pendientes[], excepciones[], tokensSesion }`. `excepciones[]` (`{caso, items:[{codigo, detalle}]}`) lo arma el servidor con los valores reales: la interfaz los muestra sin depender de lo que escriba el modelo. |
 | `GET` | `/api/sessions/:id` | Historial completo de la sesión (mensajes y llamadas a herramientas). |
-| `GET` | `/api/health` | `{ ok, provider, model, configurado }`, sin exponer claves. |
+| `GET` | `/api/health` | `{ ok, provider, model, configurado, protegido }`, sin exponer claves. Es la única ruta de API que no pide clave. |
 | `GET` | `/api/casos` | Casos disponibles. |
 | `GET` | `/api/control` | Filas de `out/control.csv`. |
 

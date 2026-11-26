@@ -3,7 +3,7 @@
  * y no el simulado sobre archivos. Así cambiar a SAP real solo exige otra implementación de `SapAdapter`.
  */
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -67,4 +67,20 @@ test("sin adaptador inyectado se usa el SAP simulado sobre archivos", async () =
   assert.equal(r.ok, true, r.error ?? "");
   assert.equal(r.data?.numero_oc, "4500000001");
   assert.equal(existsSync(join(directory, "out", "sap", "ordenes.jsonl")), true);
+});
+
+test("dos sesiones que crean la misma solicitud a la vez generan una sola OC", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "oc-conc-"));
+  cpSync(join(RAIZ, "fixtures"), join(directory, "fixtures"), { recursive: true });
+  reiniciarSalida(directory);
+  const crear = (sessionId: string) => llamar("oc_crear", { caso: "sol-001" }, { directory, sessionId });
+
+  const [a, b] = await Promise.all([crear("sesion-A-0001"), crear("sesion-B-0002")]);
+
+  assert.equal(a.ok, true, a.error ?? "");
+  assert.equal(b.ok, true, b.error ?? "");
+  assert.equal(a.data?.numero_oc, b.data?.numero_oc, "ambas deben recibir la misma OC");
+  assert.equal([a, b].filter((x) => x.data?.idempotente === true).length, 1, "exactamente una es la reintentada");
+  const lineas = readFileSync(join(directory, "out", "sap", "ordenes.jsonl"), "utf8").split("\n").filter(Boolean);
+  assert.equal(lineas.length, 1, "solo debe quedar una OC en SAP");
 });

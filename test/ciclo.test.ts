@@ -57,6 +57,10 @@ test("sol-004: el turno termina con pregunta y SIN OC; tras 'confirmo' se crea",
   const t1 = await turno(sesion, 'Procesa "sol-004" y no la crees hasta que confirme', deps);
   assert.equal(t1.needsConfirmation, true, "debe quedar esperando confirmación");
   assert.deepEqual(t1.pendientes, ["sol-004"]);
+  // El servidor entrega las excepciones con sus valores: el aviso no depende de cómo las redacte el modelo.
+  assert.equal(t1.excepciones[0]?.caso, "sol-004");
+  const rc5 = t1.excepciones[0]?.items.find((i) => i.codigo === "RC5");
+  assert.ok(rc5 && rc5.detalle.includes("25.000.000") && rc5.detalle.includes("26.500.000"), "debe traer ambos valores de RC5");
   assert.equal(t1.toolCalls.length, 3);
   assert.equal(ordenes().length, 0, "no debe haber OC antes de confirmar");
 
