@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente de Órdenes de Compra</title>
+<style>
+  :root {
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#1b2430; --muted:#66727f; --line:#e0e4ea;
+    --brand:#17663a; --brand-ink:#ffffff;
+    --ok:#17743a; --warn:#9a5b00; --bad:#b3261e;
+    --ok-bg:#e6f4ea; --warn-bg:#fff3d6; --bad-bg:#fdecea; --soft:#eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#11151b; --panel:#1a2029; --ink:#e7ebf0; --muted:#98a3b1; --line:#2a3340;
+      --brand:#2f9e5b; --ok:#6fd08f; --warn:#f2b655; --bad:#ff8c82;
+      --ok-bg:#15301f; --warn-bg:#3a2c0c; --bad-bg:#3b1815; --soft:#222a35; }
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  .badge { font-size:12px; padding:3px 10px; border-radius:99px; border:1px solid var(--line); color:var(--muted); white-space:nowrap; }
+  .badge.on { color:var(--ok); border-color:var(--ok); }
+  .badge.off { color:var(--bad); border-color:var(--bad); }
+  main { display:grid; grid-template-columns:320px 1fr; gap:14px; padding:14px; height:calc(100% - 53px); max-width:1320px; margin:0 auto; }
+  @media (max-width:880px) { main { grid-template-columns:1fr; height:auto; } #chatpanel { height:80vh; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; display:flex; flex-direction:column; min-height:0; }
+  .panel > h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0; padding:10px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .side { overflow:auto; }
+  .pad { padding:12px 14px; }
+  button { cursor:pointer; padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font:inherit; }
+  button:hover:not(:disabled) { border-color:var(--brand); }
+  button.primary { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  button.danger { color:var(--bad); border-color:var(--bad); }
+  button.mini { font-size:12px; padding:3px 9px; }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  .casos { display:flex; flex-wrap:wrap; gap:6px; }
+  .hint { color:var(--muted); font-size:13px; margin:8px 0 0; }
+  table.ctl { width:100%; border-collapse:collapse; font-size:12px; }
+  table.ctl th { text-align:left; color:var(--muted); font-weight:600; padding:3px 4px; }
+  table.ctl td { padding:3px 4px; border-top:1px solid var(--line); vertical-align:top; word-break:break-word; }
+  .tag { display:inline-block; padding:0 7px; border-radius:99px; font-size:11px; font-weight:600; }
+  .tag.creada { background:var(--ok-bg); color:var(--ok); }
+  .tag.idempotente { background:var(--soft); color:var(--muted); }
+  .tag.bloqueada { background:var(--bad-bg); color:var(--bad); }
+  .tag.pendiente_confirmacion { background:var(--warn-bg); color:var(--warn); }
+  .tag.error { background:var(--bad-bg); color:var(--bad); }
+  #chat { flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:88%; padding:9px 13px; border-radius:12px; word-wrap:break-word; }
+  .msg.user { align-self:flex-end; background:var(--brand); color:var(--brand-ink); white-space:pre-wrap; }
+  .msg.bot { align-self:flex-start; background:var(--soft); }
+  .msg.err { align-self:flex-start; background:var(--bad-bg); color:var(--bad); white-space:pre-wrap; }
+  .msg.bot p { margin:.35em 0; } .msg.bot p:first-child { margin-top:0; } .msg.bot p:last-child { margin-bottom:0; }
+  .msg.bot ul, .msg.bot ol { margin:.35em 0; padding-left:1.3em; }
+  .msg.bot table { border-collapse:collapse; margin:.5em 0; font-size:13px; display:block; overflow:auto; }
+  .msg.bot th, .msg.bot td { border:1px solid var(--line); padding:3px 8px; text-align:left; }
+  .msg.bot th { background:var(--panel); }
+  .msg.bot code { background:var(--panel); padding:0 4px; border-radius:4px; font-size:.92em; }
+  details.tool { align-self:flex-start; max-width:94%; border:1px solid var(--line); border-left:4px solid var(--ok); background:var(--panel); border-radius:8px; padding:5px 10px; font-size:13px; }
+  details.tool.fail { border-left-color:var(--bad); }
+  details.tool summary { cursor:pointer; list-style:none; }
+  details.tool .nombre { font-weight:600; font-family:ui-monospace,Menlo,monospace; }
+  details.tool .res { color:var(--muted); }
+  details.tool pre { margin:6px 0 2px; overflow:auto; max-height:260px; font-size:12px; background:var(--soft); padding:8px; border-radius:6px; }
+  .confirm { align-self:stretch; border:2px solid var(--warn); background:var(--warn-bg); color:var(--ink); border-radius:10px; padding:11px 14px; }
+  .confirm strong { color:var(--warn); }
+  .confirm .row { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .pensando { align-self:flex-start; color:var(--muted); font-size:14px; padding:4px 2px; }
+  .pensando i { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--muted); margin-right:3px; animation:b 1s infinite ease-in-out; }
+  .pensando i:nth-child(2) { animation-delay:.15s } .pensando i:nth-child(3) { animation-delay:.3s }
+  @keyframes b { 0%,80%,100% { opacity:.25 } 40% { opacity:1 } }
+  form#f { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+  form#f.espera { background:var(--warn-bg); }
+  form#f input { flex:1; padding:9px 11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧾 Agente de Órdenes de Compra · SAP simulado</h1>
+  <span id="estado" class="badge">conectando…</span>
+</header>
+<main>
+  <section class="panel side">
+    <h2>Solicitudes</h2>
+    <div class="pad">
+      <div class="casos" id="casos"></div>
+      <p class="hint">Pulsa un caso para pedirle al agente que lo procese. Para la demo: <button class="mini" id="demoPrompt" type="button">Procesar sol-004 sin crearla</button></p>
+    </div>
+    <h2>Log de control <button class="mini" id="recargar" type="button">Actualizar</button></h2>
+    <div class="pad" id="control"><span class="hint">Sin movimientos todavía.</span></div>
+  </section>
+
+  <section class="panel" id="chatpanel">
+    <h2>Chat con el agente <button class="mini" id="nueva" type="button">Nueva sesión</button></h2>
+    <div id="chat" aria-live="polite"></div>
+    <form id="f"><input id="msg" placeholder="Ej.: Procesa la solicitud sol-001" autocomplete="off" maxlength="2000"><button class="primary" id="send">Enviar</button></form>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let sessionId = nuevoId();
+let ocupado = false;
+
+function nuevoId() { return (crypto.randomUUID && crypto.randomUUID()) || ("s-" + Date.now() + "-" + Math.random().toString(16).slice(2)); }
+function el(tag, cls, texto) { const e = document.createElement(tag); if (cls) e.className = cls; if (texto !== undefined) e.textContent = texto; return e; }
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/* Renderizador mínimo de Markdown (tablas, listas, títulos, negrita, código). Escapa todo el HTML primero. */
+function inline(t) {
+  return esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+}
+function md(src) {
+  const lineas = src.replace(/\r/g, "").split("\n"); let html = "", i = 0;
+  const esTabla = (k) => /^\s*\|/.test(lineas[k] || "") && /^\s*\|?\s*:?-{2,}/.test(lineas[k + 1] || "");
+  const celdas = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  while (i < lineas.length) {
+    const l = lineas[i];
+    if (!l.trim()) { i++; continue; }
+    if (esTabla(i)) {
+      const cab = celdas(l); i += 2; let filas = "";
+      while (i < lineas.length && /^\s*\|/.test(lineas[i])) { filas += "<tr>" + celdas(lineas[i]).map((c) => "<td>" + inline(c) + "</td>").join("") + "</tr>"; i++; }
+      html += "<table><thead><tr>" + cab.map((c) => "<th>" + inline(c) + "</th>").join("") + "</tr></thead><tbody>" + filas + "</tbody></table>"; continue;
+    }
+    const h = l.match(/^#{1,4}\s+(.*)$/);
+    if (h) { html += "<p><strong>" + inline(h[1]) + "</strong></p>"; i++; continue; }
+    if (/^\s*[-*•]\s+/.test(l)) { let li = ""; while (i < lineas.length && /^\s*[-*•]\s+/.test(lineas[i])) { li += "<li>" + inline(lineas[i].replace(/^\s*[-*•]\s+/, "")) + "</li>"; i++; } html += "<ul>" + li + "</ul>"; continue; }
+    if (/^\s*\d+[.)]\s+/.test(l)) { let li = ""; while (i < lineas.length && /^\s*\d+[.)]\s+/.test(lineas[i])) { li += "<li>" + inline(lineas[i].replace(/^\s*\d+[.)]\s+/, "")) + "</li>"; i++; } html += "<ol>" + li + "</ol>"; continue; }
+    let p = []; while (i < lineas.length && lineas[i].trim() && !esTabla(i) && !/^#{1,4}\s/.test(lineas[i]) && !/^\s*([-*•]|\d+[.)])\s+/.test(lineas[i])) { p.push(inline(lineas[i])); i++; }
+    html += "<p>" + p.join("<br>") + "</p>";
+  }
+  return html;
+}
+
+function bajar() { const c = $("chat"); c.scrollTop = c.scrollHeight; }
+function msgUsuario(t) { $("chat").append(el("div", "msg user", t)); bajar(); }
+function msgBot(t) { const m = el("div", "msg bot"); m.innerHTML = md(t); $("chat").append(m); bajar(); }
+function msgError(t) { $("chat").append(el("div", "msg err", "⚠ " + t)); bajar(); }
+
+function tarjetaHerramienta(c) {
+  const d = el("details", "tool" + (c.ok ? "" : " fail"));
+  const s = el("summary");
+  s.append(el("span", "nombre", "🔧 " + c.nombre), el("span", "", "  " + (c.ok ? "✓" : "✗") + " "), el("span", "res", c.resumen));
+  d.append(s);
+  let detalle = "Argumentos:\n" + JSON.stringify(c.args, null, 2) + "\n\nResultado:\n";
+  try { detalle += JSON.stringify(JSON.parse(c.resultado), null, 2); } catch { detalle += c.resultado; }
+  d.append(el("pre", "", detalle));
+  $("chat").append(d); bajar();
+}
+
+function avisoConfirmacion(pendientes) {
+  document.querySelectorAll(".confirm").forEach((n) => n.remove());
+  $("f").classList.toggle("espera", pendientes.length > 0);
+  if (!pendientes.length) return;
+  const box = el("div", "confirm");
+  const t = el("div"); t.innerHTML = "<strong>⏸ El agente espera tu confirmación</strong> para " + esc(pendientes.join(", ")) + ". No crea la OC hasta que respondas.";
+  const fila = el("div", "row");
+  const si = el("button", "primary", "Confirmo"), no = el("button", "danger", "No confirmo");
+  si.onclick = () => enviar("Confirmo"); no.onclick = () => enviar("No confirmo, no la crees.");
+  fila.append(si, no); box.append(t, fila);
+  $("chat").append(box); bajar();
+}
+
+function pensando(on) {
+  const previo = document.getElementById("pensando"); if (previo) previo.remove();
+  if (!on) return;
+  const p = el("div", "pensando"); p.id = "pensando"; p.innerHTML = "<i></i><i></i><i></i> pensando…";
+  $("chat").append(p); bajar();
+}
+
+async function enviar(texto) {
+  texto = (texto || "").trim(); if (!texto || ocupado) return;
+  ocupado = true; $("send").disabled = true;
+  document.querySelectorAll(".confirm button").forEach((b) => (b.disabled = true));
+  msgUsuario(texto); pensando(true);
+  try {
+    const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, message: texto }) });
+    const d = await r.json(); pensando(false);
+    if (!r.ok) { msgError(d.error || "Error del servidor"); }
+    else {
+      // Se muestran en el orden real: llamadas a herramientas y luego la respuesta.
+      (d.toolCalls || []).forEach(tarjetaHerramienta);
+      if (d.reply) msgBot(d.reply);
+      if (d.error) msgError(d.error);
+      avisoConfirmacion(d.pendientes || []);
+    }
+  } catch { pensando(false); msgError("No se pudo contactar el servidor. Revisa tu conexión."); }
+  ocupado = false; $("send").disabled = false; $("msg").focus(); cargarControl();
+}
+
+async function cargarControl() {
+  try {
+    const { filas } = await (await fetch("/api/control")).json();
+    const box = $("control"); box.textContent = "";
+    if (!filas.length) { box.append(el("span", "hint", "Sin movimientos todavía.")); return; }
+    const t = el("table", "ctl"); const cab = el("tr");
+    ["Solicitud", "Resultado", "OC", "Retro"].forEach((h) => cab.append(el("th", "", h))); t.append(cab);
+    for (const f of filas.slice().reverse()) {
+      const tr = el("tr"); const r = el("td"); r.append(el("span", "tag " + f.resultado, f.resultado.replace("_confirmacion", "")));
+      tr.append(el("td", "", f.solicitud_id), r, el("td", "", f.numero_oc || "—"), el("td", "", f.retroactiva === "true" ? "SÍ" : "no"));
+      const det = [f.bloqueos && "bloqueos " + f.bloqueos, f.confirmaciones && "conf. " + f.confirmaciones].filter(Boolean).join(" · ");
+      if (det) tr.title = det; t.append(tr);
+    }
+    box.append(t);
+  } catch { /* panel informativo: se ignora */ }
+}
+
+function reiniciar() {
+  sessionId = nuevoId(); $("chat").textContent = ""; $("f").classList.remove("espera");
+  msgBot("Hola, soy el agente de órdenes de compra. Dime qué solicitud procesar (p. ej. «Procesa la solicitud sol-001»). Valido los controles RC1–RC10, te muestro la OC como quedaría en SAP y **no creo nada con excepciones sin tu confirmación**.");
+}
+
+$("f").addEventListener("submit", (e) => { e.preventDefault(); const t = $("msg").value; $("msg").value = ""; enviar(t); });
+$("recargar").onclick = cargarControl;
+$("nueva").onclick = reiniciar;
+$("demoPrompt").onclick = () => enviar('Procesa la solicitud "sol-004". Muéstrame la OC como quedaría en SAP, qué validaciones pasó y cuáles no, y no la crees hasta que yo lo confirme.');
+
+(async function init() {
+  try {
+    const h = await (await fetch("/api/health")).json(); const b = $("estado");
+    b.textContent = h.configurado ? h.provider + " · " + h.model : "Sin clave del modelo (" + h.provider + ")";
+    b.classList.add(h.configurado ? "on" : "off");
+    const { casos } = await (await fetch("/api/casos")).json();
+    casos.forEach((c) => { const b = el("button", "mini", c); b.type = "button"; b.onclick = () => enviar("Procesa la solicitud " + c); $("casos").append(b); });
+  } catch { $("estado").textContent = "sin conexión"; $("estado").classList.add("off"); }
+  reiniciar(); cargarControl();
+})();
+</script>
+</body>
+</html>

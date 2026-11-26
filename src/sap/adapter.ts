@@ -1,12 +1,11 @@
-import type { DatosOC, OrdenCompra } from "../types.ts";
+import type { OrdenCompra } from "../types.ts";
 
 /**
- * Contrato que debe cumplir cualquier backend SAP.
- * - MockSapAdapter (src/sap/mock.ts): memoria, para demo y pruebas.
- * - Producción: ver SOLUCION.md (BAPI_PO_CREATE1 u OData API_PURCHASEORDER_PROCESS_SRV).
+ * Contrato con SAP (PRD 7.4). El resto del sistema solo conoce esta interfaz.
+ * `fecha` en buscarOrdenPorReferencia es una extensión opcional para devolver la fecha original en reintentos.
  */
 export interface SapAdapter {
-  crearOrdenCompra(datos: DatosOC, meta: { creadaPor: string; confirmadaPor: string; justificacion: string }): Promise<OrdenCompra>;
-  buscarPorSolicitud(solicitudId: string): Promise<OrdenCompra | null>;
-  listar(): Promise<OrdenCompra[]>;
+  consultarProveedor(nit: string): Promise<{ codigo_sap: string; activo: boolean } | null>;
+  crearOrden(orden: OrdenCompra): Promise<{ numero_oc: string; fecha: string }>;
+  buscarOrdenPorReferencia(solicitud_id: string): Promise<{ numero_oc: string; fecha?: string } | null>;
 }

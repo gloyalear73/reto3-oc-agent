@@ -1,11 +1,15 @@
-COTIZACIÓN No. TN-884
-Proveedor: Tecnoservicios del Norte Ltda
-NIT: 800.555.222-7
-Fecha: 2026-11-09
-Condición de pago: Pago a 30 días
+COTIZACIÓN SDN-0093
+Fecha: 2026-08-21
+Proveedor: Soluciones Digitales del Norte S.A.S.
+NIT: 901.999.000-5
+Cliente: Periferia IT Group S.A.S. - NIT 900.123.456-7
 
-- Soporte mensual: 3 x 1.000.000
+ÍTEMS
+1. Licencia anual pruebas automatizadas, por usuario | Cantidad: 5 | Precio unitario (IVA incl.): COP 1.700.000 | Subtotal: COP 8.500.000
 
-Subtotal: 3000000
-IVA (19%): 570000
-Total: 3570000
+Base gravable: COP 7.142.857
+IVA 19%: COP 1.357.143
+TOTAL (IVA incluido): COP 8.500.000
+
+Validez de la oferta: 15 días
+Condiciones de pago: según acuerdo comercial vigente.

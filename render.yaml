@@ -3,9 +3,13 @@ services:
     name: agente-ordenes-compra
     runtime: docker
     plan: free
-    healthCheckPath: /api/estado
+    healthCheckPath: /api/health
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false # se pega manualmente en el panel de Render
-      - key: ANTHROPIC_MODEL
+      - key: LLM_MODEL
         value: claude-sonnet-5-5
+      - key: MAX_TOKENS_SESION
+        value: "200000"
+      - key: MAX_TOKENS_GLOBAL
+        value: "1000000"

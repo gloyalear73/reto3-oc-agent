@@ -1,152 +1,155 @@
-// Tipos de dominio. SUPUESTO: la forma de los JSON se infirmó del instructivo;
-// al recibir los fixtures reales, ajustar aquí y en src/data/loader.ts.
+import { z } from "zod/v4";
+
+export type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
+export const exito = <T>(data: T): Resultado<T> => ({ ok: true, data });
+export const falla = (error: string): Resultado<never> => ({ ok: false, error });
+
+const fechaIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "debe tener formato AAAA-MM-DD");
+
+/** Solicitud normalizada (PRD 7.1). Un monto no numérico produce un error legible (HU-6). */
+export const SolicitudSchema = z.object({
+  solicitud_id: z.string().min(1),
+  solicitante: z.string(),
+  proveedor_nombre: z.string(),
+  proveedor_nit: z.string().optional(),
+  descripcion: z.string(),
+  centro_costo: z.string(),
+  subarea: z.string(),
+  cantidad: z.number(),
+  valor_unitario: z.number(),
+  valor_total: z.number(),
+  moneda: z.enum(["COP", "USD"]),
+  indicador_iva: z.string().optional(),
+  condiciones_pago: z.string().optional(),
+  fecha_solicitud: fechaIso,
+});
+export type Solicitud = z.infer<typeof SolicitudSchema>;
+
+export const CorreoSchema = z.object({
+  id: z.string(),
+  de: z.string(),
+  asunto: z.string(),
+  fecha: z.string(),
+  adjuntos: z.array(z.string()).optional(),
+});
+
+export const AprobacionSchema = z.object({
+  de: z.string(),
+  para: z.string().optional(),
+  fecha: z.string(),
+  asunto: z.string().optional(),
+  cuerpo: z.string(),
+});
+
+/** Paquete normalizado (PRD 7.2). `referencia`, `para` y `asunto` son extensiones para trazabilidad y evidencia. */
+export interface Paquete {
+  correo: { id: string; de: string; asunto: string; fecha: string };
+  solicitud: Solicitud;
+  cotizacion: {
+    referencia: string | null;
+    proveedor: string;
+    nit: string | null;
+    total: number;
+    moneda: string;
+    validez_hasta: string | null;
+    texto: string;
+  } | null;
+  aprobacion: { de: string; para: string; fecha: string; asunto: string; aprobado: boolean; texto: string } | null;
+  factura: { numero: string; fecha: string; total: number } | null;
+}
 
 export interface Proveedor {
-  id: string;
-  nombre: string;
+  codigo_sap: string;
   nit: string;
-  estado: "activo" | "bloqueado" | "inactivo";
-  defaults: { indicadorIva: string; condicionPago: string; moneda: string };
-}
-
-export interface Lider {
-  id: string;
   nombre: string;
+  condiciones_pago_default: string;
+  indicador_iva_default: string;
+  activo: boolean;
+}
+export interface Aprobador {
   email: string;
-  topeAprobacion: number;
+  nombre?: string;
+  tope: number;
 }
-
 export interface CentroCosto {
-  codigo: string;
-  nombre: string;
+  centro_costo: string;
+  nombre?: string;
   subareas: string[];
-  lider: Lider;
+  aprobadores: Aprobador[];
 }
-
 export interface IndicadorIva {
   codigo: string;
-  tasa: number;
   descripcion: string;
+  tasa: number;
 }
-
 export interface CondicionPago {
   codigo: string;
-  dias: number;
   descripcion: string;
+  dias: number;
 }
-
 export interface Maestros {
   proveedores: Proveedor[];
-  centrosCosto: CentroCosto[];
-  indicadoresIva: IndicadorIva[];
-  condicionesPago: CondicionPago[];
+  centros: CentroCosto[];
+  indicadores: IndicadorIva[];
+  condiciones: CondicionPago[];
 }
 
-export interface ItemSolicitud {
-  descripcion: string;
-  cantidad: number;
-  valorUnitario: number;
-}
-
-export interface Solicitud {
-  id: string;
-  solicitante: string;
-  centroCosto: string;
-  subarea: string;
-  proveedorNit: string;
-  descripcion: string;
-  items: ItemSolicitud[];
-  moneda: string;
-  fecha: string;
-}
-
-export interface Correo {
-  id: string;
-  de: string;
-  para: string;
-  asunto: string;
-  fecha: string; // YYYY-MM-DD, fecha de proceso (determinista)
-  cuerpo: string;
-  adjuntos: string[];
-}
-
-export interface Aprobacion {
-  aprobador: string;
-  aprobadorId: string;
-  fecha: string;
-  monto: number;
-  moneda: string;
-  estado: "aprobado" | "rechazado" | "pendiente";
-  canal: string;
-}
-
-export interface Cotizacion {
-  numero: string;
-  proveedor: string;
-  nit: string;
-  fecha: string;
-  condicionPagoTexto: string;
-  condicionPagoDias: number | null;
-  subtotal: number;
-  iva: number;
-  total: number;
-}
-
-export interface Factura {
-  numero: string;
-  proveedor: string;
-  nit: string;
-  fecha: string;
-  total: number;
-}
-
-export interface Caso {
-  solicitud: Solicitud;
-  correo: Correo;
-  cotizacion: Cotizacion;
-  aprobacion: Aprobacion;
-  factura: Factura | null;
-}
-
-export type Severidad = "bloqueante" | "escalamiento";
-export type Decision = "CREAR" | "ESCALAR" | "RECHAZAR";
-
+/** Hallazgo de una regla de control. `valores` muestra los datos comparados (p. ej. RC5). */
 export interface Hallazgo {
-  control: string;
-  nombre: string;
-  ok: boolean;
-  severidad: Severidad;
+  codigo: string;
   detalle: string;
+  accion_sugerida: string;
+  valores?: Record<string, string | number>;
 }
-
-export interface DatosOC {
-  solicitudId: string;
-  proveedorId: string;
-  proveedorNombre: string;
-  centroCosto: string;
-  subarea: string;
-  indicadorIva: string;
-  condicionPago: string;
-  moneda: string;
-  subtotal: number;
-  iva: number;
-  total: number;
-  aprobador: string;
+export interface Derivado {
+  valor: string;
+  fuente: string;
+}
+export interface Validacion {
+  apta: boolean;
+  bloqueos: Hallazgo[];
+  confirmaciones: Hallazgo[];
+  derivados: { indicador_iva?: Derivado; condiciones_pago?: Derivado };
   retroactiva: boolean;
-  fechaDocumento: string;
 }
 
-export interface Evaluacion {
-  solicitudId: string;
-  decision: Decision;
-  resumen: string;
-  hallazgos: Hallazgo[];
-  datosOC: DatosOC | null;
-}
+/** Payload de la OC (PRD 7.4), validado con zod. */
+export const OrdenCompraSchema = z.object({
+  referencia: z.object({
+    solicitud_id: z.string(),
+    correo_id: z.string(),
+    cotizacion_ref: z.string().nullable(),
+  }),
+  sociedad: z.literal("1000"),
+  organizacion_compras: z.literal("1000"),
+  proveedor: z.object({ codigo_sap: z.string(), nit: z.string(), nombre: z.string() }),
+  moneda: z.enum(["COP", "USD"]),
+  condiciones_pago: z.string(),
+  aprobador: z.object({
+    email: z.string(),
+    fecha_aprobacion: z.string(),
+    evidencia_sha256: z.string().length(64),
+  }),
+  posiciones: z
+    .array(
+      z.object({
+        numero: z.number().int().positive(),
+        descripcion: z.string().max(40),
+        cantidad: z.number(),
+        unidad: z.enum(["UN", "H", "MES"]),
+        precio_unitario: z.number(),
+        centro_costo: z.string(),
+        subarea: z.string(),
+        indicador_iva: z.string(),
+      }),
+    )
+    .min(1),
+  excepciones: z.array(
+    z.object({ codigo: z.string(), detalle: z.string(), confirmado_por: z.string().nullable() }),
+  ),
+});
+export type OrdenCompra = z.infer<typeof OrdenCompraSchema>;
 
-export interface OrdenCompra extends DatosOC {
-  numero: string;
-  creadaPor: string;
-  confirmadaPor: string;
-  justificacion: string;
+export interface Traza {
+  [campo: string]: { valor: unknown; fuente: string; nota?: string };
 }

@@ -1,9 +1,10 @@
 {
-  "aprobador": "Ana Gómez",
-  "aprobadorId": "L-ana",
-  "fecha": "2026-11-12",
-  "monto": 3570000,
-  "moneda": "COP",
-  "estado": "aprobado",
-  "canal": "correo"
+  "de": "mlopez@periferia-ficticia.com",
+  "para": "sofía.herrera@periferia-ficticia.com",
+  "cc": [
+    "compras@periferia-ficticia.com"
+  ],
+  "fecha": "2026-08-22T15:30:00-05:00",
+  "asunto": "RE: Solicitud de orden de compra SOL-002",
+  "cuerpo": "Aprobado.\n\nMariana López"
 }

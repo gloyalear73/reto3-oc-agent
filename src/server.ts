@@ -1,99 +1,102 @@
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
-import { crearContexto, ejecutarHerramienta, MATRIZ_CONTROLES, type Contexto } from "./tools/oc.ts";
-import { llmDisponible, turnoAgente, type Mensaje } from "./agent/loop.ts";
-import { listarCasos } from "./data/loader.ts";
+import { join } from "node:path";
+import { cargarSystem, nuevaSesion, tokensUsadosGlobal, turno, type Sesion } from "./agent/ciclo.ts";
+import { config, RAIZ } from "./config.ts";
+import { listarCasos } from "./domain/paquete.ts";
+import { leerControl, reiniciarSalida } from "./domain/salida.ts";
+import { crearProveedor } from "./llm/index.ts";
 
-const PORT = Number(process.env.PORT ?? 3000);
-
-interface Sesion {
-  historial: Mensaje[];
-  ctx: Contexto;
+try {
+  process.loadEnvFile?.(join(RAIZ, ".env")); // opcional: carga .env si existe (Node ≥ 20.12)
+} catch {
+  /* sin .env: se usan las variables del entorno */
 }
+
+const llm = crearProveedor();
+reiniciarSalida(RAIZ); // PRD 8: out/ se limpia al inicio
+
+const MAX_SESIONES = 200;
+const ID_SESION = /^[\w-]{8,64}$/;
 const sesiones = new Map<string, Sesion>();
 
 function sesion(id: string): Sesion {
   let s = sesiones.get(id);
   if (!s) {
-    s = { historial: [], ctx: crearContexto() };
+    if (sesiones.size >= MAX_SESIONES) sesiones.delete(sesiones.keys().next().value as string); // descarta la más antigua
+    s = nuevaSesion(id);
     sesiones.set(id, s);
   }
   return s;
 }
 
-const json = (res: ServerResponse, status: number, body: unknown) => {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify(body));
+const json = (res: ServerResponse, estado: number, cuerpo: unknown) => {
+  res.writeHead(estado, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  res.end(JSON.stringify(cuerpo));
 };
 
-async function leerBody(req: IncomingMessage): Promise<any> {
-  const chunks: Buffer[] = [];
-  let tam = 0;
-  for await (const c of req) {
-    tam += (c as Buffer).length;
-    if (tam > 100_000) throw new Error("Body demasiado grande");
-    chunks.push(c as Buffer);
+async function leerCuerpo(req: IncomingMessage): Promise<unknown> {
+  const trozos: Buffer[] = [];
+  let total = 0;
+  for await (const t of req) {
+    total += (t as Buffer).length;
+    if (total > 20_000) throw new Error("Cuerpo demasiado grande");
+    trozos.push(t as Buffer);
   }
-  return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
+  return trozos.length ? JSON.parse(Buffer.concat(trozos).toString("utf8")) : {};
 }
 
-const INDEX = () => readFileSync(resolve("public/index.html"), "utf8");
-
-createServer(async (req, res) => {
+const servidor = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
+    const ruta = url.pathname;
 
-    if (req.method === "GET" && url.pathname === "/") {
+    if (req.method === "GET" && ruta === "/") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      return res.end(INDEX());
+      return void res.end(readFileSync(join(RAIZ, "web", "index.html"), "utf8"));
     }
 
-    if (req.method === "GET" && url.pathname === "/api/estado") {
-      return json(res, 200, { llm: llmDisponible(), casos: listarCasos(), controles: MATRIZ_CONTROLES });
+    // Nunca expone claves: solo proveedor, modelo y si hay credencial configurada.
+    if (req.method === "GET" && ruta === "/api/health") {
+      return json(res, 200, { ok: true, provider: llm.nombre, model: llm.modelo, configurado: llm.configurado });
     }
 
-    // Evaluación determinista, sin LLM (misma lógica que demo.ts)
-    if (req.method === "POST" && url.pathname === "/api/evaluar") {
-      const { sesionId, solicitudId } = await leerBody(req);
-      const s = sesion(sesionId ?? "anon");
-      const evaluacion = await ejecutarHerramienta("validar_solicitud", { solicitudId }, s.ctx);
-      const propuesta = (evaluacion as any)?.decision && (evaluacion as any).decision !== "RECHAZAR"
-        ? await ejecutarHerramienta("crear_oc", { solicitudId }, s.ctx)
-        : null;
-      return json(res, 200, { evaluacion, propuesta });
+    if (req.method === "GET" && ruta === "/api/casos") return json(res, 200, { casos: listarCasos(RAIZ) });
+    if (req.method === "GET" && ruta === "/api/control") return json(res, 200, { filas: leerControl(RAIZ) });
+
+    const m = ruta.match(/^\/api\/sessions\/([\w-]+)$/);
+    if (req.method === "GET" && m) {
+      const s = sesiones.get(m[1]!);
+      return s ? json(res, 200, { id: s.id, creada: s.creada, tokens: s.tokens, transcripcion: s.transcripcion }) : json(res, 404, { error: "Sesión inexistente" });
     }
 
-    if (req.method === "POST" && url.pathname === "/api/chat") {
-      const { sesionId, mensaje } = await leerBody(req);
-      if (typeof mensaje !== "string" || !mensaje.trim()) return json(res, 400, { error: "mensaje requerido" });
-      const s = sesion(sesionId ?? "anon");
-      s.historial.push({ role: "user", content: mensaje.slice(0, 4000) });
-      const eventos = await turnoAgente(s.historial, s.ctx);
-      return json(res, 200, { eventos });
-    }
+    if (req.method === "POST" && ruta === "/api/chat") {
+      const cuerpo = (await leerCuerpo(req)) as { sessionId?: unknown; message?: unknown };
+      const message = typeof cuerpo.message === "string" ? cuerpo.message.trim() : "";
+      if (!message) return json(res, 400, { error: "Falta `message`." });
+      if (message.length > 2000) return json(res, 400, { error: "El mensaje supera 2000 caracteres." });
+      const id = typeof cuerpo.sessionId === "string" && ID_SESION.test(cuerpo.sessionId) ? cuerpo.sessionId : randomUUID();
 
-    // Decisión humana sobre una confirmación pendiente. El modelo NO puede invocar este endpoint.
-    if (req.method === "POST" && url.pathname === "/api/confirmar") {
-      const { sesionId, token, aprobar, persona, justificacion } = await leerBody(req);
-      const s = sesion(sesionId ?? "anon");
-      const r = await s.ctx.confirmaciones.resolver(token, !!aprobar, String(persona || "usuario-web"), String(justificacion ?? ""));
-      if (r.ok && s.historial.length) {
-        s.historial.push({ role: "user", content: `[SISTEMA] ${r.mensaje}` });
+      const s = sesion(id);
+      if (s.ocupada) return json(res, 429, { error: "La sesión está procesando un mensaje. Espera su respuesta." });
+      s.ocupada = true;
+      try {
+        const r = await turno(s, message, { llm, directory: RAIZ, system: () => cargarSystem(RAIZ) });
+        return json(res, 200, { sessionId: id, ...r });
+      } finally {
+        s.ocupada = false;
       }
-      return json(res, r.ok ? 200 : 400, r);
     }
 
-    if (req.method === "GET" && url.pathname === "/api/ocs") {
-      const s = sesion(url.searchParams.get("sesionId") ?? "anon");
-      return json(res, 200, await s.ctx.sap.listar());
-    }
-
-    json(res, 404, { error: "no encontrado" });
+    json(res, 404, { error: "No encontrado" });
   } catch (e) {
     json(res, 500, { error: (e as Error).message });
   }
-}).listen(PORT, () => {
-  console.log(`Agente OC escuchando en http://localhost:${PORT}  (LLM ${llmDisponible() ? "activo" : "sin ANTHROPIC_API_KEY"})`);
+});
+
+servidor.listen(config().puerto, () => {
+  const c = config();
+  console.log(`Agente de OC en http://localhost:${c.puerto}  ·  ${llm.nombre}/${llm.modelo}  ·  clave ${llm.configurado ? "configurada" : "NO configurada"}`);
+  console.log(`Topes: ${c.maxIteraciones} iteraciones/turno · ${c.maxTokensSesion} tokens/sesión · ${c.maxTokensGlobal} tokens global (usados: ${tokensUsadosGlobal()})`);
 });

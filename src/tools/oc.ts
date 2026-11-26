@@ -1,148 +1,225 @@
+// Cada export es una herramienta; el modelo la ve como `oc_<export>` (<archivo>_<export>).
+// Aquí solo viven herramientas: la lógica de negocio está en src/domain/ y src/sap/.
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod/v4";
-import { evaluarCaso, MATRIZ_CONTROLES } from "../controls.ts";
-import { ConfirmationStore } from "../confirmations.ts";
-import { cargarCaso, cargarMaestros, listarCasos } from "../data/loader.ts";
-import { normalizarNit } from "../data/parsing.ts";
+import {
+  confirmacionVerificable,
+  consumirPendiente,
+  marcarPendiente,
+} from "../domain/confirmaciones.ts";
+import { generarEvidencia } from "../domain/evidencia.ts";
+import { resolverCaso, validarCaso } from "../domain/flujo.ts";
+import { construirPayload } from "../domain/payload.ts";
+import { registrarControl, type ResultadoControl } from "../domain/salida.ts";
+import { canonico } from "../domain/util.ts";
 import { MockSapAdapter } from "../sap/mock.ts";
-import type { SapAdapter } from "../sap/adapter.ts";
-import type { Maestros } from "../types.ts";
+import { definir, fail, ok, seguro } from "./tipos.ts";
 
-export interface Contexto {
-  maestros: Maestros;
-  sap: SapAdapter;
-  confirmaciones: ConfirmationStore;
-}
+const caso = z.string().describe("Nombre de la carpeta del caso en fixtures/reto-03/solicitudes/, p. ej. sol-001");
 
-export function crearContexto(sap: SapAdapter = new MockSapAdapter()): Contexto {
-  return { maestros: cargarMaestros(), sap, confirmaciones: new ConfirmationStore(sap) };
-}
+const paqueteOpcional = z
+  .record(z.string(), z.unknown())
+  .optional()
+  .describe(
+    "OPCIONAL: omítelo. La herramienta lee el paquete directamente del caso. Si lo envías debe ser idéntico al de oc_leer_paquete.",
+  );
 
-export interface Herramienta<S extends z.ZodType = z.ZodType> {
-  name: string;
-  description: string;
-  schema: S;
-  /** true si la herramienta pide una decisión humana (la UI la resalta). */
-  requiereConfirmacion?: boolean;
-  execute: (args: z.infer<S>, ctx: Contexto) => Promise<unknown>;
-}
-
-const solicitudId = z.string().regex(/^[\w-]+$/).describe("Identificador de la solicitud, p. ej. sol-001");
-
-async function solicitudesConOC(ctx: Contexto) {
-  return new Set((await ctx.sap.listar()).map((o) => o.solicitudId));
-}
-
-const listarSolicitudes: Herramienta = {
-  name: "listar_solicitudes",
-  description: "Lista los identificadores de solicitudes de compra disponibles en el buzón.",
-  schema: z.object({}),
-  execute: async () => ({ solicitudes: listarCasos() }),
-};
-
-const leerSolicitud: Herramienta<z.ZodObject<{ solicitudId: typeof solicitudId }>> = {
-  name: "leer_solicitud",
+export const leer_paquete = definir({
   description:
-    "Lee TODOS los documentos de una solicitud: correo, solicitud, cotización (ya parseada), aprobación y factura si existe.",
-  schema: z.object({ solicitudId }),
-  execute: async ({ solicitudId }) => cargarCaso(solicitudId),
-};
-
-const consultarProveedor: Herramienta<z.ZodObject<{ nit: z.ZodString }>> = {
-  name: "consultar_proveedor",
-  description: "Busca un proveedor en el maestro por NIT (acepta puntos y dígito de verificación).",
-  schema: z.object({ nit: z.string().min(5).describe("NIT del proveedor") }),
-  execute: async ({ nit }, ctx) => {
-    const p = ctx.maestros.proveedores.find((x) => normalizarNit(x.nit) === normalizarNit(nit));
-    return p ?? { encontrado: false, mensaje: `NIT ${nit} no existe en el maestro de proveedores` };
+    "Lee y normaliza el paquete de una solicitud (correo, solicitud, cotización, aprobación y factura si existe). Un adjunto ausente se informa en `faltantes`.",
+  args: { caso },
+  async execute({ caso }, ctx) {
+    return seguro(() => {
+      const r = resolverCaso(ctx.directory, caso);
+      return r.ok ? ok({ ...r.data.paquete, faltantes: r.data.faltantes }) : fail(r.error);
+    });
   },
-};
+});
 
-const consultarCentroCosto: Herramienta<z.ZodObject<{ codigo: z.ZodString }>> = {
-  name: "consultar_centro_costo",
-  description: "Devuelve un centro de costo con sus subáreas, su líder y el tope de aprobación del líder.",
-  schema: z.object({ codigo: z.string().describe("Código del centro de costo, p. ej. CC100") }),
-  execute: async ({ codigo }, ctx) =>
-    ctx.maestros.centrosCosto.find((c) => c.codigo === codigo) ?? { encontrado: false, mensaje: `Centro ${codigo} no existe` },
-};
-
-const validarSolicitud: Herramienta<z.ZodObject<{ solicitudId: typeof solicitudId }>> = {
-  name: "validar_solicitud",
+export const validar = definir({
   description:
-    "Ejecuta la matriz de controles C01-C13 sobre una solicitud y devuelve la decisión determinista: CREAR, ESCALAR o RECHAZAR, con el detalle de cada control. Debe llamarse antes de proponer una OC.",
-  schema: z.object({ solicitudId }),
-  execute: async ({ solicitudId }, ctx) => {
-    const caso = cargarCaso(solicitudId);
-    return evaluarCaso(caso, ctx.maestros, await solicitudesConOC(ctx));
+    "Aplica las reglas de control RC1–RC10 al caso y devuelve { apta, bloqueos[], confirmaciones[], derivados, retroactiva }. Los bloqueos impiden crear la OC.",
+  args: { caso, paquete: paqueteOpcional },
+  async execute({ caso, paquete }, ctx) {
+    return seguro(() => {
+      const r = validarCaso(ctx.directory, caso, paquete);
+      if (!r.ok) return fail(r.error);
+      // Las excepciones ya se las va a mostrar el agente al usuario: desde aquí un "confirmo" posterior es verificable.
+      const { apta, confirmaciones } = r.data.validacion;
+      if (apta && confirmaciones.length > 0) marcarPendiente(ctx.sessionId, caso);
+      return ok(r.data.validacion);
+    });
   },
-};
+});
 
-const crearOC: Herramienta<z.ZodObject<{ solicitudId: typeof solicitudId; motivo: z.ZodOptional<z.ZodString> }>> = {
-  name: "crear_oc",
+export const generar_evidencia = definir({
   description:
-    "Propone la creación de la orden de compra en SAP. NO escribe en SAP: genera una solicitud de confirmación humana que una persona debe aprobar en la interfaz. Solo aplica si la decisión es CREAR o ESCALAR; con RECHAZAR se rehúsa.",
-  schema: z.object({
-    solicitudId,
-    motivo: z.string().optional().describe("Resumen para el aprobador humano (obligatorio al escalar)"),
-  }),
-  requiereConfirmacion: true,
-  execute: async ({ solicitudId, motivo }, ctx) => {
-    const caso = cargarCaso(solicitudId);
-    const ev = evaluarCaso(caso, ctx.maestros, await solicitudesConOC(ctx));
-    if (ev.decision === "RECHAZAR" || !ev.datosOC) {
-      return { estado: "RECHAZADA", mensaje: "No se puede crear la OC: hay controles bloqueantes.", evaluacion: ev };
-    }
-    const pendiente = ctx.confirmaciones.solicitar(solicitudId, ev.decision, ev.datosOC, motivo ?? ev.resumen);
-    return {
-      estado: "REQUIERE_CONFIRMACION",
-      token: pendiente.token,
-      decision: ev.decision,
-      mensaje:
-        ev.decision === "ESCALAR"
-          ? "Escalamiento: una persona debe autorizar con justificación antes de crear la OC."
-          : "Confirmación humana requerida antes de escribir en SAP.",
-      resumen: ev.resumen,
-      datosOC: ev.datosOC,
-    };
+    "Genera la evidencia de aprobación del caso (out/<caso>/aprobacion.txt y .pdf) y devuelve su ruta y sha256.",
+  args: { caso },
+  async execute({ caso }, ctx) {
+    return seguro(async () => {
+      const r = resolverCaso(ctx.directory, caso);
+      if (!r.ok) return fail(r.error);
+      if (!r.data.paquete.aprobacion) return fail("No hay correo de aprobación para generar la evidencia.");
+      return ok(await generarEvidencia(ctx.directory, caso, r.data.paquete.aprobacion));
+    });
   },
-};
+});
 
-const consultarOC: Herramienta<z.ZodObject<{ solicitudId: typeof solicitudId }>> = {
-  name: "consultar_oc",
-  description: "Consulta si ya existe una OC creada en SAP para una solicitud.",
-  schema: z.object({ solicitudId }),
-  execute: async ({ solicitudId }, ctx) =>
-    (await ctx.sap.buscarPorSolicitud(solicitudId)) ?? { existe: false, mensaje: `No hay OC para ${solicitudId}` },
-};
+export const construir_payload = definir({
+  description:
+    "Construye la OC tal como quedaría en SAP (esquema validado con zod), genera la evidencia y guarda la trazabilidad de cada valor. Falla si hay bloqueos.",
+  args: {
+    caso,
+    paquete: paqueteOpcional,
+    derivados: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("OPCIONAL: omítelo. Los derivados se calculan en oc_validar y la herramienta los reutiliza."),
+  },
+  async execute({ caso, paquete, derivados }, ctx) {
+    return seguro(async () => {
+      const r = validarCaso(ctx.directory, caso, paquete);
+      if (!r.ok) return fail(r.error);
+      const { paquete: p, maestros, validacion } = r.data;
+      if (derivados !== undefined && canonico(derivados) !== canonico(validacion.derivados)) {
+        return fail("Los derivados enviados no coinciden con los calculados. Omite el argumento `derivados`.");
+      }
+      if (!validacion.apta) {
+        return fail("No se puede construir la OC: hay bloqueos.", { bloqueos: validacion.bloqueos });
+      }
+      if (!p.aprobacion) return fail("No se puede construir la OC sin correo de aprobación.");
 
-export const HERRAMIENTAS: Herramienta<any>[] = [
-  listarSolicitudes,
-  leerSolicitud,
-  consultarProveedor,
-  consultarCentroCosto,
-  validarSolicitud,
-  crearOC,
-  consultarOC,
-];
+      const evidencia = await generarEvidencia(ctx.directory, caso, p.aprobacion);
+      const c = construirPayload(p, maestros, validacion, evidencia.sha256);
+      if (!c.ok) return fail(c.error);
 
-export { MATRIZ_CONTROLES };
+      const dir = join(ctx.directory, "out", caso);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "trazabilidad.json"),
+        JSON.stringify({ caso, solicitud_id: p.solicitud.solicitud_id, campos: c.data.trazabilidad }, null, 2),
+      );
 
-/** Punto único de ejecución: valida con zod antes de llamar a la herramienta. */
-export async function ejecutarHerramienta(nombre: string, entrada: unknown, ctx: Contexto) {
-  const h = HERRAMIENTAS.find((t) => t.name === nombre);
-  if (!h) return { error: `Herramienta desconocida: ${nombre}` };
-  const parsed = h.schema.safeParse(entrada ?? {});
-  if (!parsed.success) return { error: "Argumentos inválidos", detalle: z.prettifyError(parsed.error) };
-  try {
-    return await h.execute(parsed.data, ctx);
-  } catch (e) {
-    return { error: (e as Error).message };
-  }
-}
+      // Se le muestra al usuario: desde ahora, crear con excepciones exige un mensaje posterior suyo.
+      if (c.data.payload.excepciones.length > 0) marcarPendiente(ctx.sessionId, caso);
 
-/** Definiciones en el formato `tools` de la API de Anthropic. */
-export function definicionesParaModelo() {
-  return HERRAMIENTAS.map((h) => {
-    const { $schema, ...input_schema } = z.toJSONSchema(h.schema) as Record<string, unknown>;
-    return { name: h.name, description: h.description, input_schema };
-  });
-}
+      return ok({
+        payload: c.data.payload,
+        trazabilidad: `out/${caso}/trazabilidad.json`,
+        evidencia,
+        confirmaciones: validacion.confirmaciones,
+        derivados: validacion.derivados,
+        retroactiva: validacion.retroactiva,
+      });
+    });
+  },
+});
+
+export const crear = definir({
+  description:
+    "Crea la OC en SAP. Solo si el caso es apto y, cuando hay confirmaciones, el usuario ya confirmó en un mensaje posterior (confirmado = true). Es idempotente por solicitud.",
+  args: {
+    caso,
+    payload: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("OPCIONAL: omítelo. La OC se reconstruye en el servidor; un payload distinto se rechaza."),
+    confirmado: z
+      .boolean()
+      .optional()
+      .describe("true SOLO después de que el usuario confirme explícitamente en su mensaje más reciente."),
+  },
+  async execute({ caso, payload, confirmado }, ctx) {
+    const registrar = (
+      solicitud_id: string,
+      resultado: ResultadoControl,
+      extra: { numero_oc?: string; retroactiva?: boolean; bloqueos?: string[]; confirmaciones?: string[] } = {},
+    ) =>
+      registrarControl(ctx.directory, {
+        solicitud_id,
+        resultado,
+        numero_oc: extra.numero_oc ?? null,
+        retroactiva: extra.retroactiva ?? false,
+        bloqueos: extra.bloqueos ?? [],
+        confirmaciones: extra.confirmaciones ?? [],
+      });
+
+    return seguro(async () => {
+      const r = validarCaso(ctx.directory, caso);
+      if (!r.ok) {
+        registrar(caso, "error");
+        return fail(r.error);
+      }
+      const { paquete: p, maestros, validacion: v } = r.data;
+      const id = p.solicitud.solicitud_id;
+      const codigos = (xs: { codigo: string }[]) => xs.map((x) => x.codigo);
+      const sap = new MockSapAdapter(ctx.directory);
+
+      // Idempotencia: la misma solicitud nunca genera una segunda OC.
+      const existente = await sap.buscarOrdenPorReferencia(id);
+      if (existente) {
+        registrar(id, "idempotente", { numero_oc: existente.numero_oc, retroactiva: v.retroactiva });
+        return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha ?? null, idempotente: true });
+      }
+
+      if (!v.apta) {
+        registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: codigos(v.bloqueos) });
+        return fail("La OC no se puede crear: hay bloqueos.", { bloqueos: v.bloqueos });
+      }
+
+      if (v.confirmaciones.length > 0) {
+        if (!confirmado) {
+          marcarPendiente(ctx.sessionId, caso);
+          registrar(id, "pendiente_confirmacion", {
+            retroactiva: v.retroactiva,
+            confirmaciones: codigos(v.confirmaciones),
+          });
+          return fail("Requiere confirmación humana antes de crear la OC. Pregúntale al usuario y espera su respuesta.", {
+            requiere_confirmacion: true,
+            confirmaciones: v.confirmaciones,
+          });
+        }
+        if (!confirmacionVerificable(ctx.sessionId, caso)) {
+          registrar(id, "pendiente_confirmacion", {
+            retroactiva: v.retroactiva,
+            confirmaciones: codigos(v.confirmaciones),
+          });
+          return fail(
+            "No hay una confirmación verificable: el usuario debe responder en un mensaje posterior a ver las excepciones. Muéstraselas y espera.",
+            { requiere_confirmacion: true, confirmaciones: v.confirmaciones },
+          );
+        }
+      }
+
+      if (!p.aprobacion) return fail("No se puede crear la OC sin correo de aprobación.");
+      const evidencia = await generarEvidencia(ctx.directory, caso, p.aprobacion);
+      const c = construirPayload(p, maestros, v, evidencia.sha256);
+      if (!c.ok) return fail(c.error);
+      if (payload !== undefined && canonico(payload) !== canonico(c.data.payload)) {
+        return fail("El payload enviado no coincide con el validado. Omite `payload`: la OC se construye en el servidor.");
+      }
+
+      // Defensa en profundidad: SAP (en producción, en tiempo real) debe confirmar al proveedor.
+      const enSap = await sap.consultarProveedor(c.data.payload.proveedor.nit);
+      if (!enSap?.activo) {
+        registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: ["RC1"] });
+        return fail("SAP no reconoce al proveedor como activo.");
+      }
+
+      const orden = {
+        ...c.data.payload,
+        excepciones: c.data.payload.excepciones.map((e) => ({ ...e, confirmado_por: "analista (chat)" })),
+      };
+      const creada = await sap.crearOrden(orden);
+      consumirPendiente(ctx.sessionId, caso);
+      registrar(id, "creada", {
+        numero_oc: creada.numero_oc,
+        retroactiva: v.retroactiva,
+        confirmaciones: codigos(v.confirmaciones),
+      });
+      return ok({ numero_oc: creada.numero_oc, fecha: creada.fecha, idempotente: false, evidencia: evidencia.ruta });
+    });
+  },
+});

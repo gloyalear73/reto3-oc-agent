@@ -1,17 +1,16 @@
 {
-  "id": "sol-005",
-  "solicitante": "Natalia Vega",
-  "centroCosto": "CC200",
-  "subarea": "Servicios Generales",
-  "proveedorNit": "900.123.456-1",
-  "descripcion": "Mantenimiento de oficinas",
-  "items": [
-    {
-      "descripcion": "Mantenimiento general",
-      "cantidad": 1,
-      "valorUnitario": 6000000
-    }
-  ],
+  "solicitud_id": "SOL-2026-005",
+  "solicitante": "Camila Ortiz",
+  "proveedor_nombre": "Papelería Central Ltda.",
+  "proveedor_nit": "800444555",
+  "descripcion": "Papelería y tóner para el trimestre",
+  "centro_costo": "CC-2020",
+  "subarea": "Compras",
+  "cantidad": 1,
+  "valor_unitario": 3200000,
+  "valor_total": 3200000,
   "moneda": "COP",
-  "fecha": "2026-11-18"
+  "indicador_iva": "C1",
+  "condiciones_pago": "Z015",
+  "fecha_solicitud": "2026-08-27"
 }

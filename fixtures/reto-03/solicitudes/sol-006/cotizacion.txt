@@ -1,11 +1,15 @@
-COTIZACIÓN No. CE-310
-Proveedor: Capacitaciones Educativas S.A.S.
-NIT: 890.999.000-2
-Fecha: 2026-11-17
-Condición de pago: Pago a 90 días
+COTIZACIÓN COT-TS-2026-0468
+Fecha: 2026-08-28
+Proveedor: TecnoSuministros S.A.S.
+NIT: 900.555.111-2
+Cliente: Periferia IT Group S.A.S. - NIT 900.123.456-7
 
-- Taller 2 días: 1 x 3.500.000
+ÍTEMS
+1. Diadema USB con micrófono y cancelación de ruido | Cantidad: 30 | Precio unitario (IVA incl.): COP 180.000 | Subtotal: COP 5.400.000
 
-Subtotal: 3500000
-IVA (0%): 0
-Total: 3500000
+Base gravable: COP 4.537.815
+IVA 19%: COP 862.185
+TOTAL (IVA incluido): COP 5.400.000
+
+Validez de la oferta: 30 días
+Condiciones de pago: según acuerdo comercial vigente.

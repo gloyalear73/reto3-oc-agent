@@ -1,17 +1,17 @@
 [
   {
-    "codigo": "I0",
-    "tasa": 0,
-    "descripcion": "Exento / excluido"
+    "codigo": "C0",
+    "descripcion": "Excluido / no gravado",
+    "tasa": 0
   },
   {
-    "codigo": "I1",
-    "tasa": 19,
-    "descripcion": "IVA general 19%"
+    "codigo": "C1",
+    "descripcion": "IVA 19%",
+    "tasa": 0.19
   },
   {
-    "codigo": "I2",
-    "tasa": 5,
-    "descripcion": "IVA reducido 5%"
+    "codigo": "C2",
+    "descripcion": "IVA 5%",
+    "tasa": 0.05
   }
 ]
