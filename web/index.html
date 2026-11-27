@@ -59,7 +59,9 @@
   .msg.bot th { background:var(--panel); }
   .msg.bot code { background:var(--panel); padding:0 4px; border-radius:4px; font-size:.92em; }
   details.tool { align-self:flex-start; max-width:94%; border:1px solid var(--line); border-left:4px solid var(--ok); background:var(--panel); border-radius:8px; padding:5px 10px; font-size:13px; }
+  .acciones { display:flex; gap:6px; }
   details.tool.fail { border-left-color:var(--bad); }
+  body.sin-tecnica details.tool:not(.fail) { display:none; } /* vista de usuario final: solo se ven los errores de herramienta */
   details.tool summary { cursor:pointer; list-style:none; }
   details.tool .nombre { font-weight:600; font-family:ui-monospace,Menlo,monospace; }
   details.tool .res { color:var(--muted); }
@@ -99,7 +101,7 @@
   </section>
 
   <section class="panel" id="chatpanel">
-    <h2>Chat con el agente <button class="mini" id="nueva" type="button">Nueva sesión</button></h2>
+    <h2>Chat con el agente <span class="acciones"><button class="mini" id="tecnica" type="button" aria-pressed="true" title="Muestra u oculta las llamadas a herramientas (nombre, argumentos y resultado)">Vista técnica: sí</button> <button class="mini" id="nueva" type="button">Nueva sesión</button></span></h2>
     <div class="aviso" id="clave" hidden><label for="claveIn">Clave de acceso</label><input id="claveIn" type="password" autocomplete="off" placeholder="La clave que te entregaron"><button class="primary" id="claveOk" type="button">Entrar</button></div>
     <div id="chat" aria-live="polite"></div>
     <form id="f"><input id="msg" placeholder="Ej.: Procesa la solicitud sol-001" autocomplete="off" maxlength="2000"><button class="primary" id="send">Enviar</button></form>
@@ -237,6 +239,16 @@ function reiniciar() {
 $("f").addEventListener("submit", (e) => { e.preventDefault(); const t = $("msg").value; $("msg").value = ""; enviar(t); });
 $("recargar").onclick = cargarControl;
 $("nueva").onclick = reiniciar;
+
+// Vista técnica: las llamadas a herramientas son para auditar; el PRD (CA4) pide que estén visibles, por eso arranca activa.
+function vistaTecnica(activa, guardar) {
+  document.body.classList.toggle("sin-tecnica", !activa);
+  $("tecnica").textContent = "Vista técnica: " + (activa ? "sí" : "no");
+  $("tecnica").setAttribute("aria-pressed", String(activa));
+  if (guardar) { try { sessionStorage.setItem("ocTecnica", activa ? "1" : "0"); } catch { /* ignorar */ } }
+}
+$("tecnica").onclick = () => vistaTecnica(document.body.classList.contains("sin-tecnica"), true);
+try { if (sessionStorage.getItem("ocTecnica") === "0") vistaTecnica(false, false); } catch { /* sin almacenamiento */ }
 $("demoPrompt").onclick = () => enviar('Procesa la solicitud "sol-004". Muéstrame la OC como quedaría en SAP, qué validaciones pasó y cuáles no, y no la crees hasta que yo lo confirme.');
 
 async function cargarCasos() {
