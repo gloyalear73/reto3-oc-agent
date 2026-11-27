@@ -58,6 +58,21 @@ export function consumirPendiente(sessionId: string, caso: string): void {
   e.excepciones.delete(caso);
 }
 
+/**
+ * Un rechazo explícito («no confirmo», «no la crees», «cancela») cierra lo pendiente: la excepción ya fue decidida
+ * y no debe seguir esperando. Es una heurística y solo puede cerrar, nunca abrir: ante la duda no crea nada.
+ * Para crear después, el agente tiene que volver a mostrar las excepciones y la persona confirmar en un mensaje nuevo.
+ */
+export function esRechazo(texto: string): boolean {
+  return /^\s*(no\s+confirmo|no\s+(la|lo)\s+(crees|creen|crear)|no\s+(crees|crear)\b|cancela|cancelar|rechazo|rechazar)/i.test(texto);
+}
+
+export function descartarPendientes(sessionId: string): void {
+  const e = estado(sessionId);
+  e.pendientes.clear();
+  e.excepciones.clear();
+}
+
 export function pendientesDe(sessionId: string): string[] {
   return [...estado(sessionId).pendientes.keys()];
 }

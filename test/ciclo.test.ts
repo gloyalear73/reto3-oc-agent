@@ -158,3 +158,29 @@ test("el tope de iteraciones cierra el turno con una respuesta", async () => {
     delete process.env.MAX_ITERACIONES;
   }
 });
+
+test("un rechazo explícito cierra lo pendiente: no se vuelve a pedir confirmación ni se puede crear", async () => {
+  const { directory, ordenes } = entorno();
+  const llm = guion(
+    () => [llamada("a", "oc_construir_payload", { caso: "sol-004" })],
+    () => [texto("RC5: ¿confirmas?")],
+    () => [texto("Entendido, no la creo.")],
+    // Un mensaje posterior cualquiera NO sirve de confirmación: el modelo intenta crear y el servidor lo rechaza.
+    () => [llamada("b", "oc_crear", { caso: "sol-004", confirmado: true })],
+    () => [texto("No se pudo crear.")],
+  );
+  const sesion = nuevaSesion("sesion-prueba-rechazo");
+  const deps = { llm, directory, system: () => "prueba" };
+
+  const t1 = await turno(sesion, "Procesa sol-004", deps);
+  assert.equal(t1.needsConfirmation, true);
+
+  const t2 = await turno(sesion, "No confirmo, no la crees.", deps);
+  assert.equal(t2.needsConfirmation, false, "tras el rechazo el aviso debe desaparecer");
+  assert.deepEqual(t2.pendientes, []);
+  assert.deepEqual(t2.excepciones, []);
+
+  const t3 = await turno(sesion, "ok, sigue", deps);
+  assert.equal(t3.toolCalls[0]?.ok, false, "sin pendiente verificable no se puede crear");
+  assert.equal(ordenes().length, 0);
+});

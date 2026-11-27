@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "../config.ts";
-import { excepcionesPendientes, pendientesDe, registrarMensajeUsuario, type Excepcion } from "../domain/confirmaciones.ts";
+import { descartarPendientes, esRechazo, excepcionesPendientes, pendientesDe, registrarMensajeUsuario, type Excepcion } from "../domain/confirmaciones.ts";
 import { ErrorLlm, type MensajeLlm, type ProveedorLlm } from "../llm/adapter.ts";
 import type { SapAdapter } from "../sap/adapter.ts";
 import { definicionesParaModelo, ejecutarHerramienta, resumir } from "../tools/index.ts";
@@ -80,6 +80,7 @@ export async function turno(sesion: Sesion, texto: string, deps: DependenciasCic
   sesion.mensajes.push({ rol: "usuario", texto });
   sesion.transcripcion.push({ tipo: "usuario", texto });
   registrarMensajeUsuario(sesion.id);
+  if (esRechazo(texto)) descartarPendientes(sesion.id);
 
   const ctx = { directory: deps.directory, sessionId: sesion.id, sap: deps.sap };
   const herramientas = definicionesParaModelo();
