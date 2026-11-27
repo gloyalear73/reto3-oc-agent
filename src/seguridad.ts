@@ -54,3 +54,13 @@ export function ipCliente(xff: string | string[] | undefined, remota: string | u
     .pop();
   return ultimo || remota || "desconocida";
 }
+
+/**
+ * En el despliegue público la clave de acceso es obligatoria (`REQUIRE_ACCESS_KEY=1`): sin ella el servidor no arranca,
+ * para no dejar por descuido un enlace abierto que gasta la clave del modelo.
+ */
+export function errorDeArranque(cfg: { exigirClave: boolean; claveAcceso: string }): string | null {
+  return cfg.exigirClave && !cfg.claveAcceso
+    ? "REQUIRE_ACCESS_KEY=1 pero ACCESS_KEY está vacía: define ACCESS_KEY o quita REQUIRE_ACCESS_KEY."
+    : null;
+}

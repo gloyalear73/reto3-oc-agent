@@ -28,7 +28,7 @@ const codigos = (xs: unknown): string[] => (Array.isArray(xs) ? (xs as Hallazgo[
 const ESPERADO: Record<string, { apta: boolean; bloqueos: string[]; confirmaciones: string[]; retroactiva: boolean }> = {
   "sol-001": { apta: true, bloqueos: [], confirmaciones: [], retroactiva: false },
   "sol-002": { apta: false, bloqueos: ["RC1"], confirmaciones: [], retroactiva: false },
-  "sol-003": { apta: false, bloqueos: ["RC2"], confirmaciones: [], retroactiva: false },
+  "sol-003": { apta: false, bloqueos: ["RC2", "RC3"], confirmaciones: [], retroactiva: false },
   "sol-004": { apta: true, bloqueos: [], confirmaciones: ["RC5"], retroactiva: false },
   "sol-005": { apta: true, bloqueos: [], confirmaciones: ["RC8"], retroactiva: true },
   "sol-006": { apta: true, bloqueos: [], confirmaciones: ["RC6"], retroactiva: false },

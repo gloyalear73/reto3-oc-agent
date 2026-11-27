@@ -7,7 +7,7 @@ import { config, RAIZ } from "./config.ts";
 import { listarCasos } from "./domain/paquete.ts";
 import { leerControl, reiniciarSalida } from "./domain/salida.ts";
 import { crearProveedor } from "./llm/index.ts";
-import { claveValida, crearLimitador, ipCliente } from "./seguridad.ts";
+import { claveValida, crearLimitador, errorDeArranque, ipCliente } from "./seguridad.ts";
 
 try {
   process.loadEnvFile?.(join(RAIZ, ".env")); // opcional: carga .env si existe (Node ≥ 20.12)
@@ -19,6 +19,12 @@ const llm = crearProveedor();
 reiniciarSalida(RAIZ); // PRD 8: out/ se limpia al inicio
 
 const cfg = config();
+const errorArranque = errorDeArranque(cfg);
+if (errorArranque) {
+  console.error(errorArranque);
+  process.exit(1);
+}
+if (!cfg.claveAcceso) console.warn("Aviso: sin ACCESS_KEY el enlace es abierto; úsalo solo en local.");
 const limiteChat = crearLimitador(cfg.limiteMensajesPorMinuto);
 const limiteFallos = crearLimitador(10); // intentos de clave incorrectos por minuto y por IP
 const esRutaProtegida = (ruta: string) =>

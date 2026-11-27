@@ -15,6 +15,8 @@ services:
         value: "1000000"
       - key: ACCESS_KEY
         sync: false # opcional: clave de acceso al enlace; se define en el panel de Render
+      - key: REQUIRE_ACCESS_KEY
+        value: "1" # el enlace público exige clave de acceso
       - key: RATE_LIMIT_POR_MIN
         value: "20"
       - key: TRUST_PROXY

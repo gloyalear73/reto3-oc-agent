@@ -24,6 +24,7 @@ export function config() {
     /** Mensajes de chat por minuto y por IP. */
     limiteMensajesPorMinuto: entero(process.env.RATE_LIMIT_POR_MIN, 20),
     /** true detrás de un proxy de confianza (Render): la IP sale de X-Forwarded-For. */
+    exigirClave: process.env.REQUIRE_ACCESS_KEY === "1",
     confiarProxy: process.env.TRUST_PROXY === "1",
   };
 }

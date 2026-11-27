@@ -1,7 +1,7 @@
 /** Clave de acceso, límite por IP y detección de la IP del cliente. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { claveValida, crearLimitador, ipCliente } from "../src/seguridad.ts";
+import { claveValida, crearLimitador, errorDeArranque, ipCliente } from "../src/seguridad.ts";
 
 test("claveValida: sin clave configurada todo acceso es válido; con clave solo la correcta", () => {
   assert.equal(claveValida("", undefined), true);
@@ -39,4 +39,10 @@ test("ipCliente: usa el último X-Forwarded-For solo cuando se lo pasan; si no, 
   assert.equal(ipCliente(["8.8.8.8", "10.0.0.7"], "127.0.0.1"), "10.0.0.7");
   assert.equal(ipCliente(undefined, "127.0.0.1"), "127.0.0.1");
   assert.equal(ipCliente(undefined, undefined), "desconocida");
+});
+
+test("errorDeArranque: con REQUIRE_ACCESS_KEY el servidor no arranca sin ACCESS_KEY", () => {
+  assert.match(errorDeArranque({ exigirClave: true, claveAcceso: "" }) ?? "", /ACCESS_KEY/);
+  assert.equal(errorDeArranque({ exigirClave: true, claveAcceso: "x" }), null);
+  assert.equal(errorDeArranque({ exigirClave: false, claveAcceso: "" }), null);
 });

@@ -84,3 +84,31 @@ test("dos sesiones que crean la misma solicitud a la vez generan una sola OC", a
   const lineas = readFileSync(join(directory, "out", "sap", "ordenes.jsonl"), "utf8").split("\n").filter(Boolean);
   assert.equal(lineas.length, 1, "solo debe quedar una OC en SAP");
 });
+
+test("un adaptador cuya búsqueda solo devuelve numero_oc (contrato del PRD) sirve: el reintento omite la fecha", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "oc-sap-min-"));
+  cpSync(join(RAIZ, "fixtures"), join(directory, "fixtures"), { recursive: true });
+  reiniciarSalida(directory);
+  const guardadas = new Map<string, string>();
+  const adaptador: SapAdapter = {
+    async consultarProveedor() {
+      return { codigo_sap: "100234", activo: true };
+    },
+    async crearOrden(orden) {
+      guardadas.set(orden.referencia.solicitud_id, "4700000001");
+      return { numero_oc: "4700000001", fecha: "2026-02-01" };
+    },
+    async buscarOrdenPorReferencia(id) {
+      const numero_oc = guardadas.get(id);
+      return numero_oc ? { numero_oc } : null; // sin fecha
+    },
+  };
+  const ctx = { directory, sessionId: "sesion-sap-min", sap: adaptador };
+  const primera = await llamar("oc_crear", { caso: "sol-001" }, ctx);
+  assert.equal(primera.ok, true, primera.error ?? "");
+  const segunda = await llamar("oc_crear", { caso: "sol-001" }, ctx);
+  assert.equal(segunda.ok, true, segunda.error ?? "");
+  assert.equal(segunda.data?.idempotente, true);
+  assert.equal(segunda.data?.numero_oc, "4700000001");
+  assert.equal("fecha" in (segunda.data ?? {}), false, "sin fecha del adaptador no se inventa una");
+});

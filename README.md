@@ -5,7 +5,7 @@ Agente de chat que lee el paquete de una solicitud de compra, lo valida contra l
 Documentación completa del planteamiento: [SOLUCION.md](SOLUCION.md).
 
 **Link de prueba:** `<pegar aquí la URL pública del despliegue>`
-**Clave de acceso:** `<si se define ACCESS_KEY, indicarla aquí; si no, no aplica>`. Sin `ACCESS_KEY` el enlace es público y el gasto queda acotado por topes y por un límite de mensajes por minuto.
+**Clave de acceso:** `<la ACCESS_KEY del despliegue>` (obligatoria en el link público; entregarla solo a quien evalúa). Sin `ACCESS_KEY`, el enlace queda abierto: solo para uso local.
 
 ## Levantar en local (un comando)
 
@@ -45,6 +45,7 @@ npm run typecheck   # tsc --noEmit
 | `MAX_TOKENS_GLOBAL` | `2000000` | Tope de tokens del proceso (protege tu clave en un link público). |
 | `LLM_TIMEOUT_MS` | `60000` | Timeout hacia el proveedor. |
 | `ACCESS_KEY` | vacía | Opcional. Si se define, `/api/chat`, `/api/casos`, `/api/control` y `/api/sessions/*` exigen el header `x-access-key` (la interfaz la pide y la guarda solo en la pestaña). Tras 10 intentos erróneos por minuto y por IP responde 429. |
+| `REQUIRE_ACCESS_KEY` | vacía | `1` en el despliegue público: si falta `ACCESS_KEY`, el servidor no arranca. |
 | `RATE_LIMIT_POR_MIN` | `20` | Mensajes de chat por minuto y por IP (429 al excederlo). |
 | `TRUST_PROXY` | `0` | `1` detrás de un proxy (Render): la IP se toma del último `X-Forwarded-For`. |
 

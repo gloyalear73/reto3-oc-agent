@@ -196,5 +196,5 @@ test("procesar casos sin crearlos también queda en el log de control (bloqueada
   const filas = readFileSync(join(directory, "out/control.csv"), "utf8").trim().split("\n").slice(1);
   assert.equal(filas.length, 2, filas.join("\n"));
   assert.ok(filas.some((f) => f.startsWith("SOL-2026-005,pendiente_confirmacion,,true,,RC8,")));
-  assert.ok(filas.some((f) => f.startsWith("SOL-2026-003,bloqueada,,false,RC2,,")));
+  assert.ok(filas.some((f) => f.startsWith("SOL-2026-003,bloqueada,,false,RC2;RC3,,")));
 });

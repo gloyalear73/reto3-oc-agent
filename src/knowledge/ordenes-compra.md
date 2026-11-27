@@ -10,7 +10,7 @@ Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si quie
 |---|---|---|
 | RC1 | El proveedor existe en el maestro (por NIT; sin NIT, por nombre) y está activo. | Bloqueo |
 | RC2 | Hay aprobación, contiene «Aprobado» y viene de un correo listado como aprobador del centro de costo. | Bloqueo |
-| RC3 | El valor total no supera el tope del aprobador en ese centro. | Bloqueo |
+| RC3 | El valor total no supera el tope del aprobador en ese centro (si el aprobador no es válido, el mayor tope del centro). | Bloqueo |
 | RC4 | La subárea pertenece al centro de costo. | Bloqueo |
 | RC5 | Cotización vs solicitud dentro de ±2 %. Sin cotización o fuera de tolerancia: se muestran ambos valores. | Confirmación |
 | RC6 | Indicador de IVA ausente: se deriva del proveedor. | Confirmación + derivado |
@@ -25,7 +25,7 @@ Un **bloqueo** impide crear la OC. Una **confirmación** la permite solo si quie
 
 - **RC1 (proveedor inexistente o inactivo):** no se puede comprar a un proveedor que no está dado de alta o activo en SAP. Recomendar el alta o la reactivación y reenviar la solicitud. No es un dato que quien opera pueda corregir en el chat.
 - **RC2 (aprobador sin autoridad):** el correo de aprobación no sirve si quien aprueba no es aprobador de ese centro de costo, aunque sea un líder. Recomendar la aprobación de quien corresponde. Si el valor supera el tope de todos los aprobadores del centro, hace falta un nivel superior; no se sugiere partir la compra.
-- **RC3 (tope excedido):** el aprobador existe pero no tiene autoridad para ese monto; se necesita un aprobador con tope suficiente.
+- **RC3 (tope excedido):** el aprobador no tiene autoridad para ese monto; se necesita uno con tope suficiente. Si quien aprobó tampoco es aprobador del centro (RC2) y el valor supera el tope de todos los aprobadores, se reportan RC2 y RC3 juntos: informa las dos desde el primer rechazo y aclara que cambiar solo el aprobador no basta, hace falta un nivel superior.
 - **RC5 (cotización ≠ solicitud):** puede ser un error de digitación de la solicitud o un precio que cambió. Quien opera decide con ambos valores a la vista; el agente nunca ajusta una cifra para que cuadre.
 - **RC11 (moneda):** solo se opera en COP; no hay regla de cambio. Se pide la solicitud y la cotización en COP.
 - **RC12 (IVA):** la cotización liquida un IVA distinto al del indicador, o sus cifras no cuadran. Quien opera decide con ambos porcentajes a la vista.

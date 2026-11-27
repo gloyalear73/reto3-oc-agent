@@ -83,18 +83,29 @@ export function validar(p: Paquete, m: Maestros): Validacion {
           `Aprobadores autorizados: ${listaAprobadores(centro)}.`,
         accion_sugerida: alcanzan.length
           ? `Obtener la aprobación de ${alcanzan.map((a) => a.nombre ?? a.email).join(" o ")}.`
-          : `El valor ${cop(s.valor_total)} supera el tope de todos los aprobadores del centro: requiere aprobación de un nivel superior definido por la compañía.`,
+          : `Cambiar solo el aprobador no basta: el valor ${cop(s.valor_total)} supera el tope de todos los aprobadores del centro (ver RC3).`,
       });
     }
   }
 
-  // RC3 · valor dentro del tope del aprobador (solo evaluable si el aprobador es válido)
+  // RC3 · valor dentro del tope. Con aprobador válido se compara con su tope. Sin aprobador válido (RC2) se compara con
+  // el mayor tope del centro: si ni siquiera ese alcanza, se reporta también, para que corregir RC2 no lleve a un segundo rechazo.
   if (aprobador && s.valor_total > aprobador.tope) {
     bloqueos.push({
       codigo: "RC3",
       detalle: `El valor ${cop(s.valor_total)} supera el tope de ${aprobador.nombre ?? aprobador.email} (${cop(aprobador.tope)}) en ${s.centro_costo}.`,
       accion_sugerida: "Obtener la aprobación de un aprobador del centro con tope suficiente.",
     });
+  } else if (!aprobador && centro && centro.aprobadores.length > 0) {
+    const mayor = centro.aprobadores.reduce((a, b) => (b.tope > a.tope ? b : a));
+    if (s.valor_total > mayor.tope) {
+      bloqueos.push({
+        codigo: "RC3",
+        detalle: `El valor ${cop(s.valor_total)} supera el tope de todos los aprobadores del centro ${centro.centro_costo} (el mayor es ${mayor.nombre ?? mayor.email}, ${cop(mayor.tope)}).`,
+        accion_sugerida: "Requiere la aprobación de un nivel superior definido por la compañía; corregir solo el aprobador (RC2) no es suficiente.",
+        valores: { valor_total: s.valor_total, tope_mayor: mayor.tope },
+      });
+    }
   }
 
   // RC4 · subárea perteneciente al centro de costo

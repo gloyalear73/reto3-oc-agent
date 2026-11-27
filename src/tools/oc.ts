@@ -173,7 +173,7 @@ export const crear = definir({
         const existente = await sap.buscarOrdenPorReferencia(id);
         if (existente) {
           registrar(id, "idempotente", { numero_oc: existente.numero_oc, retroactiva: v.retroactiva });
-          return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha, idempotente: true });
+          return ok({ numero_oc: existente.numero_oc, ...(existente.fecha ? { fecha: existente.fecha } : {}), idempotente: true });
         }
 
         if (!v.apta) {

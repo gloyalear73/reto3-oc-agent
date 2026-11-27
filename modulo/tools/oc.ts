@@ -231,7 +231,7 @@ function validar(p, m) {
       bloqueos.push({
         codigo: "RC2",
         detalle: `${p.aprobacion.de} no figura como aprobador del centro ${centro.centro_costo} (${centro.nombre ?? ""}). Aprobadores autorizados: ${listaAprobadores(centro)}.`,
-        accion_sugerida: alcanzan.length ? `Obtener la aprobaci\xF3n de ${alcanzan.map((a) => a.nombre ?? a.email).join(" o ")}.` : `El valor ${cop(s.valor_total)} supera el tope de todos los aprobadores del centro: requiere aprobaci\xF3n de un nivel superior definido por la compa\xF1\xEDa.`
+        accion_sugerida: alcanzan.length ? `Obtener la aprobaci\xF3n de ${alcanzan.map((a) => a.nombre ?? a.email).join(" o ")}.` : `Cambiar solo el aprobador no basta: el valor ${cop(s.valor_total)} supera el tope de todos los aprobadores del centro (ver RC3).`
       });
     }
   }
@@ -241,6 +241,16 @@ function validar(p, m) {
       detalle: `El valor ${cop(s.valor_total)} supera el tope de ${aprobador.nombre ?? aprobador.email} (${cop(aprobador.tope)}) en ${s.centro_costo}.`,
       accion_sugerida: "Obtener la aprobaci\xF3n de un aprobador del centro con tope suficiente."
     });
+  } else if (!aprobador && centro && centro.aprobadores.length > 0) {
+    const mayor = centro.aprobadores.reduce((a, b) => b.tope > a.tope ? b : a);
+    if (s.valor_total > mayor.tope) {
+      bloqueos.push({
+        codigo: "RC3",
+        detalle: `El valor ${cop(s.valor_total)} supera el tope de todos los aprobadores del centro ${centro.centro_costo} (el mayor es ${mayor.nombre ?? mayor.email}, ${cop(mayor.tope)}).`,
+        accion_sugerida: "Requiere la aprobaci\xF3n de un nivel superior definido por la compa\xF1\xEDa; corregir solo el aprobador (RC2) no es suficiente.",
+        valores: { valor_total: s.valor_total, tope_mayor: mayor.tope }
+      });
+    }
   }
   if (!centro) {
     bloqueos.push({
@@ -877,7 +887,7 @@ var crear = definir({
         const existente = await sap.buscarOrdenPorReferencia(id);
         if (existente) {
           registrar(id, "idempotente", { numero_oc: existente.numero_oc, retroactiva: v.retroactiva });
-          return ok({ numero_oc: existente.numero_oc, fecha: existente.fecha, idempotente: true });
+          return ok({ numero_oc: existente.numero_oc, ...existente.fecha ? { fecha: existente.fecha } : {}, idempotente: true });
         }
         if (!v.apta) {
           registrar(id, "bloqueada", { retroactiva: v.retroactiva, bloqueos: codigos(v.bloqueos) });
