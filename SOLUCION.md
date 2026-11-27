@@ -254,3 +254,30 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 | Formatos reales distintos a los fixtures (xlsx, PDF escaneado). | Parsers con validación estricta y degradación a «faltante»/confirmación en lugar de adivinar. |
 | Política de retroactivas indefinida. | Medición desde el día uno; el cambio a bloqueo es una línea. |
 | El proveedor LLM falla o sube de precio. | Interfaz `ProveedorLlm`; cambio de modelo por variable de entorno; las decisiones de control no dependen del modelo. |
+
+### 12.1 Visión de producción: chat y consola de operación
+
+En producción son dos pantallas sobre el mismo backend. En el reto, el interruptor «Vista técnica» del chat junta ambas porque el PRD (6.1 y CA4) pide ver cada llamada a herramienta en el historial.
+
+| Aspecto | Chat del usuario final | Consola de operación o auditoría |
+|---|---|---|
+| Quién la usa | Quien procesa las solicitudes de compra. | Equipo dueño del producto: soporte, auditoría, producto. |
+| Qué ve | La conversación, el aviso de confirmación y los resultados en lenguaje claro. | Todas las conversaciones de todos los usuarios, con la traza completa. |
+| Llamadas a herramientas | Ocultas. | Cada una con nombre, argumentos, resultado, tokens, costo y tiempo. |
+| Acceso | Inicia sesión; solo ve sus conversaciones. | Rol de soporte, auditoría o administrador; cada consulta queda registrada. |
+| Identidad | Se sabe quién confirmó cada excepción (hoy `confirmado_por` es un valor fijo). | Filtros por usuario, fecha, solicitud, resultado y errores. |
+| Métricas | No aplica. | Casos por día, bloqueos por regla RC, retroactivas, costo y errores del modelo. |
+
+**Qué falta en el backend para llegar ahí**
+
+| Necesidad | Hoy | En producción |
+|---|---|---|
+| Quién es el usuario | Sin autenticación. | Inicio de sesión y roles (usuario, auditor, administrador). |
+| Conversaciones | En memoria; se pierden al reiniciar. | Base de datos: una fila por mensaje y por llamada a herramienta. |
+| Traza de herramientas | `out/log.jsonl`, que se borra al arrancar. | Almacén persistente y consultable. |
+| Log de control | `out/control.csv`. | Tabla con la misma estructura. |
+| Consultar conversaciones ajenas | `/api/sessions/:id`, accesible con solo conocer el id. | API de administración con rol de auditor. |
+| Costo y tokens | Contadores en memoria. | Registro por sesión y usuario. |
+| Observabilidad | Vista técnica dentro del chat. | Herramienta de observabilidad de agentes (Langfuse, LangSmith u OpenTelemetry con un panel) en lugar de una consola propia. |
+
+**Cuidados.** Las trazas contienen proveedores, montos y correos: hay que definir retención, quién las ve y qué se enmascara. El acceso a las conversaciones debe quedar auditado. La traza se escribe en el servidor, de modo que lo que ve el auditor coincide con lo registrado y no con lo que afirme el modelo. El log de control del negocio se mantiene aparte de la observabilidad, porque lo consume contabilidad. El salto desde este reto es pequeño: la traza ya se genera en el servidor, y pasarla a una base de datos o a una herramienta de observabilidad es cambiar dónde se escribe.
