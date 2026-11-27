@@ -150,7 +150,7 @@ function md(src) {
 function bajar() { const c = $("chat"); c.scrollTop = c.scrollHeight; }
 function msgUsuario(t) { $("chat").append(el("div", "msg user", t)); bajar(); }
 function msgBot(t) { const m = el("div", "msg bot"); m.innerHTML = md(t); $("chat").append(m); bajar(); }
-function msgError(t) { $("chat").append(el("div", "msg err", "⚠ " + t)); bajar(); }
+function msgError(t) { const m = el("div", "msg err", "⚠ " + t); $("chat").append(m); bajar(); return m; }
 
 function tarjetaHerramienta(c) {
   const d = el("details", "tool" + (c.ok ? "" : " fail"));
@@ -263,7 +263,14 @@ $("claveOk").onclick = async () => {
   const v = $("claveIn").value.trim(); if (!v) return;
   clave = v; try { sessionStorage.setItem("ocClave", v); } catch { /* ignorar */ }
   $("claveIn").value = "";
-  if (await cargarCasos()) { $("clave").hidden = true; cargarControl(); } else { msgError("La clave no es correcta."); }
+  if (await cargarCasos()) {
+    $("clave").hidden = true;
+    document.querySelectorAll(".msg.err.clave-mala").forEach((m) => m.remove()); // el aviso de clave incorrecta ya no aplica
+    cargarControl();
+  } else {
+    document.querySelectorAll(".msg.err.clave-mala").forEach((m) => m.remove()); // un solo aviso, no uno por intento
+    msgError("La clave no es correcta.").classList.add("clave-mala");
+  }
 };
 $("claveIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("claveOk").click(); } });
 

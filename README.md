@@ -4,8 +4,8 @@ Agente de chat que lee el paquete de una solicitud de compra, lo valida contra l
 
 Documentación completa del planteamiento: [SOLUCION.md](SOLUCION.md).
 
-**Link de prueba:** `<pegar aquí la URL pública del despliegue>`
-**Clave de acceso:** `<la ACCESS_KEY del despliegue>` (obligatoria en el link público; entregarla solo a quien evalúa). Sin `ACCESS_KEY`, el enlace queda abierto: solo para uso local.
+**Link de prueba:** `https://agente-ordenes-compra-5djo.onrender.com`
+**Clave de acceso:** se entrega por separado. Sin `ACCESS_KEY`, el enlace queda abierto: solo para uso local.
 
 ## Levantar en local (un comando)
 
