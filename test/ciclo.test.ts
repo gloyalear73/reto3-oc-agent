@@ -184,3 +184,17 @@ test("un rechazo explícito cierra lo pendiente: no se vuelve a pedir confirmaci
   assert.equal(t3.toolCalls[0]?.ok, false, "sin pendiente verificable no se puede crear");
   assert.equal(ordenes().length, 0);
 });
+
+test("procesar casos sin crearlos también queda en el log de control (bloqueada y pendiente), sin duplicados", async () => {
+  const { directory } = entorno();
+  const llm = guion(
+    () => [llamada("a", "oc_validar", { caso: "sol-005" }), llamada("b", "oc_validar", { caso: "sol-003" })],
+    () => [llamada("c", "oc_construir_payload", { caso: "sol-005" }), llamada("d", "oc_validar", { caso: "sol-005" })],
+    () => [texto("Listo.")],
+  );
+  await turno(nuevaSesion("sesion-prueba-log"), "Procesa sol-005 y sol-003", { llm, directory, system: () => "prueba" });
+  const filas = readFileSync(join(directory, "out/control.csv"), "utf8").trim().split("\n").slice(1);
+  assert.equal(filas.length, 2, filas.join("\n"));
+  assert.ok(filas.some((f) => f.startsWith("SOL-2026-005,pendiente_confirmacion,,true,,RC8,")));
+  assert.ok(filas.some((f) => f.startsWith("SOL-2026-003,bloqueada,,false,RC2,,")));
+});

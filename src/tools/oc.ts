@@ -47,8 +47,15 @@ export const validar = definir({
       const r = validarCaso(ctx.directory, caso, paquete);
       if (!r.ok) return fail(r.error);
       // Las excepciones ya se las va a mostrar el agente al usuario: desde aquí un "confirmo" posterior es verificable.
-      const { apta, confirmaciones } = r.data.validacion;
+      const { apta, confirmaciones, bloqueos, retroactiva } = r.data.validacion;
       if (apta && confirmaciones.length > 0) marcarPendiente(ctx.sessionId, caso, confirmaciones);
+      // Procesar un caso sin llegar a crearlo también es un intento: queda en el log de control.
+      const id = r.data.paquete.solicitud.solicitud_id;
+      if (!apta) {
+        registrarControl(ctx.directory, { solicitud_id: id, resultado: "bloqueada", numero_oc: null, retroactiva, bloqueos: bloqueos.map((b) => b.codigo), confirmaciones: [] });
+      } else if (confirmaciones.length > 0) {
+        registrarControl(ctx.directory, { solicitud_id: id, resultado: "pendiente_confirmacion", numero_oc: null, retroactiva, bloqueos: [], confirmaciones: confirmaciones.map((c) => c.codigo) });
+      }
       return ok(r.data.validacion);
     });
   },

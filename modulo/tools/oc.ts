@@ -686,6 +686,12 @@ function registrarControl(directory, fila) {
   mkdirSync2(out, { recursive: true });
   const archivo = join4(out, "control.csv");
   if (!existsSync2(archivo)) writeFileSync2(archivo, CABECERA_CSV);
+  if (fila.resultado !== "creada" && fila.resultado !== "idempotente") {
+    const previas = leerControl(directory).filter((f) => f.solicitud_id === fila.solicitud_id);
+    const ultima = previas[previas.length - 1];
+    const igual = ultima?.resultado === fila.resultado && ultima.bloqueos === fila.bloqueos.join(";") && ultima.confirmaciones === fila.confirmaciones.join(";");
+    if (igual || previas.some((f) => f.resultado === "creada")) return;
+  }
   const linea = [
     fila.solicitud_id,
     fila.resultado,
@@ -696,6 +702,16 @@ function registrarControl(directory, fila) {
     (/* @__PURE__ */ new Date()).toISOString()
   ].map(csv).join(",");
   appendFileSync(archivo, linea + "\n");
+}
+function leerControl(directory) {
+  const archivo = join4(directory, "out", "control.csv");
+  if (!existsSync2(archivo)) return [];
+  const [cabecera, ...filas] = readFileSync3(archivo, "utf8").split("\n").filter(Boolean);
+  const columnas = (cabecera ?? "").split(",");
+  return filas.map((f) => {
+    const celdas = f.split(",");
+    return Object.fromEntries(columnas.map((c, i) => [c, celdas[i] ?? ""]));
+  });
 }
 
 // src/sap/mock.ts
@@ -766,8 +782,14 @@ var validar2 = definir({
     return seguro(() => {
       const r = validarCaso(ctx.directory, caso2, paquete);
       if (!r.ok) return fail(r.error);
-      const { apta, confirmaciones } = r.data.validacion;
+      const { apta, confirmaciones, bloqueos, retroactiva } = r.data.validacion;
       if (apta && confirmaciones.length > 0) marcarPendiente(ctx.sessionId, caso2, confirmaciones);
+      const id = r.data.paquete.solicitud.solicitud_id;
+      if (!apta) {
+        registrarControl(ctx.directory, { solicitud_id: id, resultado: "bloqueada", numero_oc: null, retroactiva, bloqueos: bloqueos.map((b) => b.codigo), confirmaciones: [] });
+      } else if (confirmaciones.length > 0) {
+        registrarControl(ctx.directory, { solicitud_id: id, resultado: "pendiente_confirmacion", numero_oc: null, retroactiva, bloqueos: [], confirmaciones: confirmaciones.map((c) => c.codigo) });
+      }
       return ok(r.data.validacion);
     });
   }

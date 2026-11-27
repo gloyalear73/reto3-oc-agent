@@ -24,12 +24,25 @@ export function reiniciarSalida(directory: string): void {
 
 const csv = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
-/** HU-5: cada intento (exitoso, bloqueado o pendiente) agrega una fila a out/control.csv. */
+/**
+ * HU-5: cada intento (exitoso, bloqueado o pendiente) agrega una fila a out/control.csv.
+ * Para no llenar el log de ruido, un resultado «no final» (bloqueada, pendiente, error) se omite si repite
+ * la última fila de esa solicitud o si la solicitud ya tiene su OC creada. `creada` e `idempotente` siempre se registran.
+ */
 export function registrarControl(directory: string, fila: FilaControl): void {
   const out = join(directory, "out");
   mkdirSync(out, { recursive: true });
   const archivo = join(out, "control.csv");
   if (!existsSync(archivo)) writeFileSync(archivo, CABECERA_CSV);
+  if (fila.resultado !== "creada" && fila.resultado !== "idempotente") {
+    const previas = leerControl(directory).filter((f) => f.solicitud_id === fila.solicitud_id);
+    const ultima = previas[previas.length - 1];
+    const igual =
+      ultima?.resultado === fila.resultado &&
+      ultima.bloqueos === fila.bloqueos.join(";") &&
+      ultima.confirmaciones === fila.confirmaciones.join(";");
+    if (igual || previas.some((f) => f.resultado === "creada")) return;
+  }
   const linea = [
     fila.solicitud_id,
     fila.resultado,
