@@ -230,14 +230,13 @@ Cada bloqueo y confirmación devuelve `detalle` y `accion_sugerida` (lo que pide
 
 ## 11. Uso de IA
 
-> Declaración para completar y revisar por la persona candidata: debe poder explicar cada línea.
-
 - **Asistente usado:** Claude (Anthropic) a través de Claude Code, en una sesión de trabajo continua.
-- **Para qué:** (1) comparar los tres retos y elegir este; (2) diseñar la arquitectura y el contrato de herramientas; (3) escribir el código TypeScript, `demo.ts`, las pruebas con proveedor simulado y el front; (4) redactar prompt, conocimiento y esta documentación; (5) estimar costos con tarifas oficiales y tamaños medidos.
+- **Para qué:** (1) diseñar la arquitectura y el contrato de herramientas; (2) escribir el código TypeScript, `demo.ts`, las pruebas con proveedor simulado y el front; (3) redactar prompt, conocimiento y esta documentación; (4) estimar costos con tarifas oficiales y tamaños medidos.
 - **Qué se descartó de lo propuesto y por qué:**
-  - Una **primera versión construida antes de tener el PRD** (reglas y datos supuestos, aprobación con botón y endpoint propio, herramientas con otro contrato). Se descartó entera al llegar el PRD porque incumplía el contrato (`oc_*`), la confirmación por chat (CA3), el payload 7.4 y el SAP en archivos.
   - La confirmación solo con el flag `confirmado`: se reforzó con el contador de mensajes (sección 8, #3).
   - Usar el SDK del proveedor y un framework HTTP: se prefirió `fetch` y `node:http` (decisión #4).
+  - También se tomo la decision de no incluir el IVA en SAP, el estándar de SAP es que viaja el valor neto, el IVA se calcula aparte
+  - También se tomo la decision con un MVP como en COP, no se dio el manejo de otras monedas.
 - **Cómo se verificó lo generado:** ejecución de `demo.ts` contra los fixtures y comparación con los resultados esperables del PRD, pruebas automáticas, `tsc --noEmit` y prueba del adaptador contra una API simulada.
 
 ## 12. Riesgos de llevar esto a producción
